@@ -60,6 +60,10 @@ class Camera:
         self.fov = 90
 
         self.f = 1.0
+        
+        self.rotation = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+
+        self.local_forward = np.array([-1, 0, 0], dtype=np.float32)
 
     def Update(self, shader):
         shader.Use()
