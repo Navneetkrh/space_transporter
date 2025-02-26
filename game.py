@@ -3,6 +3,8 @@ import numpy as np
 from utils.graphics import Object, Camera, Shader
 import sys
 from enum import Enum, auto
+import random
+from assets.objects.objects import Transporter,Planet,SpaceStation
 
 class GameScreen(Enum):
     MAIN_MENU = auto()
@@ -28,8 +30,7 @@ class Game:
             self.worldMin = np.array([-5000, -5000, -5000], dtype=np.float32)
             self.worldMax = np.array([5000, 5000, 5000], dtype=np.float32)
             
-            # Initialize transporter for testing
-            from assets.objects.objects import Transporter
+         
             self.gameState["transporter"] = Transporter()
             # Add its shader to the shaders list
             self.shaders.append(self.gameState["transporter"].shader)
@@ -45,7 +46,68 @@ class Game:
             ############################################################################
             # Initialize Planets and space stations (Randomly place n planets and n spacestations within world bounds)
             self.n_planets = 30 # for example
-            
+            # Add to Game.InitScene method after initializing empty lists
+            # Initialize Planets and space stations
+            # Create random planets
+            for i in range(self.n_planets):
+                planet = Planet()
+                # Set random position within world bounds
+                random_pos = np.array([
+                    random.uniform(self.worldMin[0], self.worldMax[0]),
+                    random.uniform(self.worldMin[1], self.worldMax[1]),
+                    random.uniform(self.worldMin[2], self.worldMax[2])
+                ], dtype=np.float32)
+                planet.set_position(random_pos)
+                # Random color for each planet
+                random_color = np.array([
+                    random.uniform(0.3, 1.0),
+                    random.uniform(0.3, 1.0),
+                    random.uniform(0.3, 1.0),
+                    1.0
+                ], dtype=np.float32)
+                planet.set_color(random_color)
+                self.gameState["planets"].append(planet)
+                self.shaders.append(planet.shader)
+                
+                # Create a space station for each planet
+                station = SpaceStation()
+                # Calculate initial orbit position (offset from planet)
+                orbit_radius = 150.0  # Distance from planet center
+                orbit_angle = random.uniform(0, 2 * np.pi)  # Random initial angle
+                station_pos = random_pos + np.array([
+                    orbit_radius * np.cos(orbit_angle),
+                    0,  # Keep on same y-level as planet
+                    orbit_radius * np.sin(orbit_angle)
+                ], dtype=np.float32)
+                station.set_position(station_pos)
+                # Store reference to parent planet for orbit calculations
+                station.parent_planet = planet
+                station.orbit_angle = orbit_angle
+                station.orbit_radius = orbit_radius
+                station.orbit_speed = random.uniform(0.2, 0.5)  # Radians per second
+                self.gameState["spaceStations"].append(station)
+                self.shaders.append(station.shader)
+
+            # Randomly choose start and destination planets/stations
+            if len(self.gameState["spaceStations"]) >= 2:
+                # Select two different stations
+                start_idx = random.randrange(0, len(self.gameState["spaceStations"]))
+                dest_idx = start_idx
+                while dest_idx == start_idx:
+                    dest_idx = random.randrange(0, len(self.gameState["spaceStations"]))
+                
+                # Set start and destination
+                self.gameState["start_station"] = self.gameState["spaceStations"][start_idx]
+                self.gameState["destination_station"] = self.gameState["spaceStations"][dest_idx]
+                
+                # Set transporter at start station
+                start_pos = self.gameState["start_station"].position.copy()
+                # Offset slightly to avoid collision
+                start_pos += np.array([0, 20, 0], dtype=np.float32)
+                self.gameState["transporter"].set_position(start_pos)
+                self.gameState["transporter"].start_planet = self.gameState["start_station"].parent_planet
+                self.gameState["transporter"].target_planet = self.gameState["destination_station"].parent_planet
+                        
             ############################################################################
             # Initialize transporter (Randomly choose start and end planet, and initialize transporter at start planet)
             
@@ -158,7 +220,10 @@ class Game:
 
             ############################################################################
             # Update spacestations (Update velocity and position to revolve around respective planet)
-            
+            # Update space stations (orbit around planets)
+            for station in self.gameState["spaceStations"]:
+                station.update(delta_time)
+
 
             ############################################################################
             # Update Minimap Arrow: (Set direction based on transporter velocity direction and target direction)
@@ -177,7 +242,15 @@ class Game:
             
 
             ############################################################################
-            pass
+            if "transporter" in self.gameState and "destination_station" in self.gameState:
+                transporter_pos = self.gameState["transporter"].position
+                dest_station_pos = self.gameState["destination_station"].position
+                
+                # Simple distance-based collision detection
+                distance = np.linalg.norm(transporter_pos - dest_station_pos)
+                if distance < 15.0:  # Collision radius
+                    # Player won!
+                    self.screen = GameScreen.WIN
     
     def DrawScene(self):
         if self.screen == GameScreen.GAME: 

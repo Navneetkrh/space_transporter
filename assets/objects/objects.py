@@ -249,16 +249,58 @@ class Pirate(GameObject):
         model_path = os.path.join('assets', 'objects', 'models', 'pirate.obj')
         super().__init__(model_path)
 
+# Update Planet class
 class Planet(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'planet.obj')
         super().__init__(model_path, scale=100.0)
+        
+        # Set a random rotation
+        self.set_rotation(np.array([
+            np.random.uniform(0, np.pi*2),
+            np.random.uniform(0, np.pi*2),
+            np.random.uniform(0, np.pi*2)
+        ], dtype=np.float32))
+        
+        # Set a random color (default color will be adjusted in the Game class)
+        self.set_color(np.array([0.8, 0.8, 0.8, 1.0], dtype=np.float32))
 
 class SpaceStation(GameObject):
     def __init__(self):
-        model_path = os.path.join('assets', 'objects', 'models', 'station.obj')
+        model_path = os.path.join('assets', 'objects', 'models', 'spacestation.obj')
         super().__init__(model_path, scale=5.0)
+        
+        # Set initial color
+        self.set_color(np.array([0.7, 0.7, 0.9, 1.0], dtype=np.float32))
+        
+        # Orbit properties (will be set by Game class)
+        self.parent_planet = None
+        self.orbit_angle = 0.0
+        self.orbit_radius = 150.0
+        self.orbit_speed = 0.3  # Radians per second
+    
+    def update(self, delta_time):
+        # Only update if we have a parent planet
+        if self.parent_planet is not None:
+            # Update orbit angle
+            self.orbit_angle += self.orbit_speed * delta_time
+            
+            # Calculate new position based on orbit
+            planet_pos = self.parent_planet.position
+            self.position = planet_pos + np.array([
+                self.orbit_radius * np.cos(self.orbit_angle),
+                0,  # Keep on same y-level as planet
+                self.orbit_radius * np.sin(self.orbit_angle)
+            ], dtype=np.float32)
+            
+            # Update graphics object position
+            self.graphics_obj.properties['position'] = self.position
+            
+            # Add some rotation to the station itself
+            self.rotation += np.array([0, 0.1 * delta_time, 0], dtype=np.float32)
+            self.graphics_obj.properties['rotation'] = self.rotation
 
+            
 class MinimapArrow(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'arrow.obj')
