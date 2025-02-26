@@ -64,15 +64,18 @@ class Camera:
     def Update(self, shader):
         shader.Use()
 
-        # View matrix remains the same
+        # View matrix
+
         viewTranslate = np.array([  [1, 0, 0, -self.position[0]],
                                     [0, 1, 0, -self.position[1]],
                                     [0, 0, 1, -self.position[2]],
                                     [0, 0, 0, 1]], dtype = np.float32)
         
         n = - self.lookAt / np.linalg.norm(self.lookAt)
+        
         u = np.cross(self.up, n)
         u = u / np.linalg.norm(u)
+
         v = np.cross(n, u)
         v = v / np.linalg.norm(v)
 
@@ -83,18 +86,23 @@ class Camera:
 
         viewMatrix = viewRotate @ viewTranslate
         
-        # Replace orthographic projection with perspective projection
-        fovRadians = np.radians(self.fov)
-        aspect = self.width / self.height
+        # Projection matrix
+
+        orthoTranslate = np.array([  [1,0,0,0],
+                                    [0,1,0,0],
+                                    [0,0,1, (self.near + self.far)/2.0],
+                                    [0,0,0,1]], dtype = np.float32)
         
-        # Create perspective projection matrix
-        f = 1.0 / np.tan(fovRadians / 2)
-        projectionMatrix = np.array([
-            [f/aspect, 0, 0, 0],
-            [0, f, 0, 0],
-            [0, 0, (self.far + self.near)/(self.near - self.far), (2*self.far*self.near)/(self.near - self.far)],
-            [0, 0, -1, 0]
-        ], dtype=np.float32)
+        fovRadians = np.radians(self.fov/2)
+        cameraHeight = 2 * self.f * np.tan(fovRadians)
+        cameraWidth = (self.width/self.height) * cameraHeight
+        orthoScale = np.array([ [2.0/cameraWidth, 0, 0, 0],
+                                [0, 2.0/cameraHeight, 0, 0],
+                                [0, 0, -2.0/(self.far - self.near), 0],
+                                [0, 0, 0, 1]], dtype = np.float32)
+
+
+        projectionMatrix = orthoScale @ orthoTranslate
 
         viewMatrixLocation = glGetUniformLocation(shader.ID, "viewMatrix".encode('utf-8'))
         glUniformMatrix4fv(viewMatrixLocation, 1, GL_TRUE, viewMatrix)

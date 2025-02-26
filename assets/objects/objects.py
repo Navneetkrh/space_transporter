@@ -60,125 +60,190 @@ def load_and_process_obj(model_path, scale=1.0):
 class GameObject:
     def __init__(self, model_path, scale=1.0):
         # Use the existing load_and_process_obj function to get properties
-        self.properties = load_and_process_obj(model_path, scale)
+        model_properties = load_and_process_obj(model_path, scale)
         
         # Create shader and graphics object
         self.shader = Shader(standard_shader["vertex_shader"], standard_shader["fragment_shader"])
-        self.graphics_obj = Object("standard", self.shader, self.properties)
+        self.graphics_obj = Object("standard", self.shader, model_properties)
+        
+        # Common properties for all game objects
+        self.position = np.zeros(3, dtype=np.float32)
+        self.rotation = np.zeros(3, dtype=np.float32)
+        self.velocity = np.zeros(3, dtype=np.float32)
+        self.rotation_velocity = np.zeros(3, dtype=np.float32)
+        self.acceleration = np.zeros(3, dtype=np.float32)
+        self.drag_factor = 0.98  # Default drag factor
     
     def update(self, delta_time):
-        pass
+        # Base update method to be overridden by child classes
+        self.update_position(delta_time)
+        self.update_rotation(delta_time)
+        self.apply_drag(self.drag_factor)
+    
+    def update_position(self, delta_time):
+        # Update position based on velocity
+        self.position += self.velocity * delta_time
+        self.graphics_obj.properties['position'] = self.position
+    
+    def update_rotation(self, delta_time):
+        # Update rotation based on rotation velocity
+        self.rotation += self.rotation_velocity * delta_time
+        self.graphics_obj.properties['rotation'] = self.rotation
+    
+    def apply_drag(self, drag_factor):
+        # Apply drag to gradually slow down
+        self.velocity *= drag_factor
+        self.rotation_velocity *= drag_factor
     
     def Draw(self):
         self.graphics_obj.Draw()
     
     def set_position(self, position):
-        self.graphics_obj.properties['position'] = np.array(position, dtype=np.float32)
+        self.position = np.array(position, dtype=np.float32)
+        self.graphics_obj.properties['position'] = self.position
     
     def set_rotation(self, rotation):
-        self.graphics_obj.properties['rotation'] = np.array(rotation, dtype=np.float32)
+        self.rotation = np.array(rotation, dtype=np.float32)
+        self.graphics_obj.properties['rotation'] = self.rotation
+    
+    def set_velocity(self, velocity):
+        self.velocity = np.array(velocity, dtype=np.float32)
+    
+    def set_rotation_velocity(self, rotation_velocity):
+        self.rotation_velocity = np.array(rotation_velocity, dtype=np.float32)
+    
+    def add_force(self, direction, magnitude):
+        force = np.array(direction, dtype=np.float32)
+        # Normalize the direction vector
+        if np.linalg.norm(force) > 0:
+            force = force / np.linalg.norm(force)
+        # Apply the force
+        self.velocity += force * magnitude
+    
+    def add_torque(self, axis, magnitude):
+        torque = np.array(axis, dtype=np.float32)
+        # Normalize the axis vector
+        if np.linalg.norm(torque) > 0:
+            torque = torque / np.linalg.norm(torque)
+        # Apply the torque
+        self.rotation_velocity += torque * magnitude
     
     def set_color(self, color):
         self.graphics_obj.properties['colour'] = np.array(color, dtype=np.float32)
 
+
 class Transporter(GameObject):
     def __init__(self):
-
-
         model_path = os.path.join('assets', 'objects', 'models', 'transporter.obj')
-        # Adjust scale to make the model more visible (original seems too small)
+        # Adjust scale to make the model more visible
         super().__init__(model_path, scale=8.0)
         
-        # Set initial color to white to match the model
-        self.set_color(np.array([0.804, 0.498, 0.196, 1], dtype=np.float32))
+        # Set initial color and position
+        self.set_color(np.array([0.804, 1, 1, 1], dtype=np.float32))
+        self.set_position(np.array([-30, 0, -30], dtype=np.float32))
+        self.set_rotation(np.array([0, 0, np.pi], dtype=np.float32))
          
         # Physics properties
-        self.properties['velocity'] = np.zeros(3, dtype=np.float32)
-        self.properties['acceleration'] = np.zeros(3, dtype=np.float32)
-        self.properties['max_speed'] = 50.0
-        self.properties['rotation_speed'] = 20.0
+        self.max_speed = 50.0  # Maximum linear speed
+        self.max_rotation_speed = 2.0  # Maximum rotation speed
+        self.thrust_power = 10.0  # Acceleration power when using spacebar
+        self.turn_power = 0.01  # Rotation power for flight controls
+        self.drag_factor = 0.98  # Drag coefficient to slow down over time
+        
+        # Advanced flight properties
+        self.forward_speed = 0.0  # Current forward speed
         
         # Game state properties
-        self.properties['health'] = 100
-        self.properties['shield'] = 100
-        self.properties['view'] = 1  # 1 for third-person, 2 for first-person
-        self.properties['target_planet'] = None
-        self.properties['start_planet'] = None
-        
-        # Initial orientation (make it face forward)
-        self.set_position(np.array([100,100.0, 100.0], dtype=np.float32))
-        self.set_rotation(np.array([0, 0, np.pi], dtype=np.float32))
+        self.health = 100
+        self.shield = 100
+        self.view = 1  # 1 for third-person, 2 for first-person
+        self.target_planet = None
+        self.start_planet = None
         
         # Weapon properties
-        self.properties['laser_cooldown'] = 0.5
-        self.properties['last_shot_time'] = 0.0
+        self.laser_cooldown = 0.5
+        self.last_shot_time = 0.0
+        
     def process_inputs(self, inputs, delta_time):
-        # Process inputs to update transporter's state
-        # This will involve updating velocity, rotation, and potentially shooting lasers
-        # For example:
-        if inputs["A"]:
-            self.accelerate(np.array([1, 0, 0]))
-        if inputs["D"]:
-            self.accelerate(np.array([-1, 0, 0]))
-        if inputs["W"]:
-            self.accelerate(np.array([1, 0, 0]))
-        if inputs["S"]:
-            self.accelerate(np.array([-1,0, 0]))
-        if inputs["Q"]:
-            self.rotate(np.array([0, 0, 1]))
-        if inputs["E"]:
-            self.rotate(np.array([0, 0, -1]))
+        # Process rotation inputs based on flight controls
+        if inputs["W"]:  # Pitch down (rotate around X axis)
+            self.add_torque([0, 1, 0], self.turn_power)
+        if inputs["S"]:  # Pitch up (rotate around X axis)
+            self.add_torque([0, -1, 0], self.turn_power)
+        if inputs["A"]:  # Yaw left (rotate around Y axis)
+            self.add_torque([0, 0, 1], self.turn_power)
+        if inputs["D"]:  # Yaw right (rotate around Y axis)
+            self.add_torque([0, 0, -1], self.turn_power)
+        if inputs["Q"]:  # Roll left (rotate around Z axis)
+            self.add_torque([0, 0, 1], self.turn_power)
+        if inputs["E"]:  # Roll right (rotate around Z axis)
+            self.add_torque([0, 0, -1], self.turn_power)
+            
+        # Process acceleration input (spacebar)
         if inputs["SPACE"]:
-            self.shoot()
+            # In a more advanced implementation, you'd calculate the forward vector
+            # based on the current rotation matrix. For simplicity, we'll use
+            # the negative Z axis as our forward direction.
+            forward_direction = [0, 0, -1]
+            self.add_force(forward_direction, self.thrust_power)
+            
+        # For shooting lasers, we'll use a different key
+        if inputs.get("F", False):  # Use F key for firing
+            current_time = time.time()  # You'll need to import time
+            self.shoot(current_time)
 
-    def update(self,inputs, delta_time):
-        # Update transporter's state based on inputs and physics
+    def update(self, inputs, delta_time):
+        # Process inputs first
         self.process_inputs(inputs, delta_time)
-
-              
-        # Update position based on velocity
-        # print(type(self.properties['velocity'] ),print(type(delta_time),print(delta_time)))
-        self.properties['position'] += self.properties['velocity'] * delta_time
         
-        # Apply drag/friction to gradually slow down
-        drag_factor = 0.98
-        self.properties['velocity'] *= drag_factor
-        
+        # Calculate forward direction based on current rotation
+        # In a more complex implementation, you would use a full rotation matrix
+        # For simplicity, we'll use basic transformations
+       
         # Clamp velocity to max speed
-        speed = np.linalg.norm(self.properties['velocity'])
-        if speed > self.properties['max_speed']:
-            self.properties['velocity'] = (self.properties['velocity'] / speed) * self.properties['max_speed']
-    
-    def accelerate(self, direction):
-        acceleration = 20.0  # Acceleration rate
-        self.properties['velocity'] += direction * acceleration
-    
-    def rotate(self, angles):
-        self.properties['rotation'] += angles * self.properties['rotation_speed']
+        speed = np.linalg.norm(self.velocity)
+        if speed > self.max_speed:
+            self.velocity = (self.velocity / speed) * self.max_speed
+            
+        # Clamp rotation velocity to max rotation speed
+        rot_speed = np.linalg.norm(self.rotation_velocity)
+        if rot_speed > self.max_rotation_speed:
+            self.rotation_velocity = (self.rotation_velocity / rot_speed) * self.max_rotation_speed
+        
+        # Update position and rotation (parent class handles this)
+        super().update(delta_time)
+        
+        # Debug info
+        print(f"Position: {self.position}")
+        print(f"Velocity: {self.velocity}")
+        print(f"Rotation: {self.rotation}")
+        print(f"Speed: {speed:.2f} / {self.max_speed:.2f}")
     
     def can_shoot(self, current_time):
-        return current_time - self.properties['last_shot_time'] >= self.properties['laser_cooldown']
+        return current_time - self.last_shot_time >= self.laser_cooldown
     
     def shoot(self, current_time):
         if self.can_shoot(current_time):
-            self.properties['last_shot_time'] = current_time
+            self.last_shot_time = current_time
+            print("Shooting laser!")
+            # Here you would create a laser object or call a function to handle shooting
             return True
         return False
     
     def take_damage(self, amount):
-        if self.properties['shield'] > 0:
-            self.properties['shield'] -= amount
-            if self.properties['shield'] < 0:
-                overflow = -self.properties['shield']
-                self.properties['shield'] = 0
-                self.properties['health'] -= overflow
+        if self.shield > 0:
+            self.shield -= amount
+            if self.shield < 0:
+                overflow = -self.shield
+                self.shield = 0
+                self.health -= overflow
         else:
-            self.properties['health'] -= amount
+            self.health -= amount
         
-        return self.properties['health'] <= 0
+        return self.health <= 0
     
     def toggle_view(self):
-        self.properties['view'] = 3 - self.properties['view']  # Toggle between 1 and 2
+        self.view = 3 - self.view  # Toggle between 1 and 2
 class Pirate(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'pirate.obj')

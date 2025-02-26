@@ -34,7 +34,8 @@ class Game:
             # Add its shader to the shaders list
             self.shaders.append(self.gameState["transporter"].shader)
             # Set initial position slightly away from origin to see it better
-            self.gameState["transporter"].set_position(np.array([0,0, -10], dtype=np.float32))
+            # self.gameState["transporter"].set_position(np.array([20,0, -10], dtype=np.float32))
+          
             
             # Initialize empty lists for other game objects
             self.gameState["planets"] = []
@@ -132,13 +133,18 @@ class Game:
         delta_time = time['deltaTime'];
         if self.screen == GameScreen.GAME:
             # Update camera to look at transporter
-            transporter_pos = self.gameState["transporter"].properties["position"]
+            transporter_pos = self.gameState["transporter"].position
+            # Set camera position slightly behind and above the transporter
+            offset = np.array([50, 0, 20], dtype=np.float32)  # Adjust these values to change camera distance
+            self.camera.position = transporter_pos + offset
             self.camera.lookAt = transporter_pos - self.camera.position
             
             # Ensure lookAt vector is never zero
             if np.all(np.abs(self.camera.lookAt) < 1e-6):
-                # self.camera.lookAt = np.array([0.0, 0.0, -1.0], dtype=np.float32)
                 print("too close")
+
+            # Update transporter
+            self.gameState['transporter'].update(inputs,delta_time)
             # Manage inputs 
             #    if inputs["A"]:
             ############################################################################
@@ -183,8 +189,8 @@ class Game:
             # self.gameState["stars"].Draw()
             # self.gameState["arrow"].Draw()
     
-            if self.gameState["transporter"].properties["view"] == 2: # Conditionally draw crosshair
-                self.gameState["crosshair"].Draw()
+            # if self.gameState["transporter"].properties["view"] == 2: # Conditionally draw crosshair
+            #     self.gameState["crosshair"].Draw()
     
             for laser in self.gameState["lasers"]:
                 laser.Draw()
