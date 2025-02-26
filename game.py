@@ -194,22 +194,28 @@ class Game:
     def UpdateScene(self, inputs, time):
         delta_time = time['deltaTime'];
         if self.screen == GameScreen.GAME:
-            # Update camera to look at transporter
-            transporter_pos = self.gameState["transporter"].position
-            # Set camera position slightly behind and above the transporter
-            offset = np.array([50, 0, 20], dtype=np.float32)  # Adjust these values to change camera distance
-            self.camera.position = transporter_pos + offset
-            self.camera.lookAt = transporter_pos - self.camera.position
+            # Update camera to follow transporter's rotation as well
+            transporter = self.gameState["transporter"]
+            transporter_pos = transporter.position
+
+            # Calculate camera offset based on transporter's orientation vectors
+            behind_offset = -transporter.forward_direction * 50  # 50 units behind
+            up_offset = transporter.up_direction * 20  # 20 units above
+            
+            # Set camera position using the transformed offset
+            self.camera.position = transporter_pos + behind_offset + up_offset
+            
+            # Make camera look at a point slightly ahead of the transporter
+            look_ahead_point = transporter_pos + transporter.forward_direction * 10
+            self.camera.lookAt = look_ahead_point - self.camera.position
             
             # Ensure lookAt vector is never zero
             if np.all(np.abs(self.camera.lookAt) < 1e-6):
-                print("too close")
-
+                self.camera.lookAt = transporter.forward_direction
+            
             # Update transporter
             self.gameState['transporter'].update(inputs,delta_time)
-            # Manage inputs 
-            #    if inputs["A"]:
-            ############################################################################
+            
             # Update transporter (Update velocity, position, and check for collisions)
             self.gameState['transporter'].update(inputs,delta_time)
             ############################################################################
