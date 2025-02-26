@@ -204,6 +204,7 @@ class Game:
             
             # Set camera position using the transformed offset
             self.camera.position = transporter_pos + behind_offset + up_offset
+            self.camera.up = transporter.up_direction
             
             # Make camera look at a point slightly ahead of the transporter
             look_ahead_point = transporter_pos + transporter.forward_direction * 10
