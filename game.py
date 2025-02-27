@@ -336,5 +336,5 @@ class Game:
             for pirate in self.gameState["pirates"]:
                 pirate.Draw()
             ######################################################
-            pass
+
 
