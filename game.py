@@ -239,9 +239,16 @@ class Game:
             
             # Update transporter
             self.gameState['transporter'].update(inputs, delta_time)
+
+            # update pirates
+            for pirate in self.gameState["pirates"]:
+                pirate.update(delta_time, transporter_pos)
+            
+
             
             ############################################################################
             # Handle laser firing
+
             current_time = time['currentTime']
             if inputs["F"] and self.gameState['transporter'].can_shoot(current_time):
                 # Create a new laser
@@ -261,7 +268,8 @@ class Game:
                     self.gameState['lasers'].pop(i)
                 else:
                     i += 1
-            ############################################################################
+
+   
 
             # Update spacestations (Update velocity and position to revolve around respective planet)
             # Update space stations (orbit around planets)
@@ -270,6 +278,28 @@ class Game:
 
             ############################################################################
             # Check for collision between lasers and other objects (pirates, planets, etc.)
+
+            for laser in self.gameState["lasers"]:
+                # Check for collision with pirates
+                for pirate in self.gameState["pirates"]:
+                    # check distance between laser and pirate
+                    distance = np.linalg.norm(laser.position - pirate.position)
+                    if distance < 20.0:  # Collision radius
+                        # Destroy pirate
+                        self.gameState["pirates"].remove(pirate)
+                        # Remove laser
+                        self.gameState["lasers"].remove(laser)
+                        break
+                
+                # Check for collision with planets
+                for planet in self.gameState["planets"]:
+                    distance = np.linalg.norm(laser.position - planet.position)
+                    if distance < 10.0:
+                        # Remove laser
+                        self.gameState["lasers"].remove(laser)
+                        break
+
+            
             # This would be implemented here
             ############################################################################
 

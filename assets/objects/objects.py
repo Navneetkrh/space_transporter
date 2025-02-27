@@ -322,7 +322,7 @@ class Pirate(GameObject):
         self.set_color(np.array([1.0, 0.2, 0.2, 1.0], dtype=np.float32))
         
         # Pirate properties
-        self.speed = 1000.0 + random.uniform(-10.0, 10.0)  # Variable speed
+        self.speed = 30.0 + random.uniform(-50.0, 50.0)  # Variable speed
         self.chase_distance = 30000.0  # Distance at which pirates start chasing
         self.health = 3  # Hit points (takes 3 laser hits to destroy)
         self.damage = 100  # Damage dealt on collision
@@ -347,16 +347,35 @@ class Pirate(GameObject):
                 direction = to_player / distance_to_player
             else:
                 direction = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+            
+            # Calculate an interception angle (30-60 degrees from direct approach)
+            # This creates a flanking behavior rather than direct following
+            intercept_angle = np.random.uniform(np.pi/6, np.pi/3)  # 30-60 degrees
+            
+            # Randomly choose left or right interception
+            if np.random.random() > 0.5:
+                intercept_angle = -intercept_angle
                 
-            # Move toward player with speed
-            self.velocity = direction * self.speed
+            # Create rotation matrix for the interception angle around Y axis
+            cos_angle = np.cos(intercept_angle)
+            sin_angle = np.sin(intercept_angle)
+            rot_matrix = np.array([
+                [cos_angle, 0, sin_angle],
+                [0, 1, 0],
+                [-sin_angle, 0, cos_angle]
+            ])
             
-            # Gradually rotate to face the player
-            # Calculate desired rotation (simplified)
-            target_rotation = np.arctan2(direction[2], direction[0])
-            current_rotation = self.rotation[1]  # Assuming Y is the up axis
+            # Rotate the direction vector by the interception angle
+            approach_direction = rot_matrix @ direction
+                    
+            # Move toward player with adjusted direction
+            self.velocity = approach_direction * self.speed
             
-            # Calculate the shortest angle difference
+            # Gradually rotate to face the intercept direction
+            target_rotation = np.arctan2(approach_direction[2], approach_direction[0])
+            current_rotation = self.rotation[1]
+            
+            # Calculate shortest angle difference
             angle_diff = (target_rotation - current_rotation + np.pi) % (2 * np.pi) - np.pi
             
             # Gradually rotate toward the target
