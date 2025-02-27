@@ -194,3 +194,110 @@ standard_shader = {
         }
     '''
 }
+
+######################################################
+# Glowing 3D shape shader with additional glow effect
+laser_shader = {
+    "vertex_shader" : '''
+        #version 330 core
+        layout(location = 0) in vec3 vertexPosition;
+        layout(location = 1) in vec3 vertexNormal;
+
+        uniform mat4 modelMatrix;
+        uniform mat4 viewMatrix;
+        uniform mat4 projectionMatrix;
+        uniform float focalLength;
+        
+        out vec3 fragmentPosition;
+        out vec3 fragmentNormal;
+        out vec4 v_clip_pos;
+
+        void main() {
+            vec4 worldPos = modelMatrix * vec4(vertexPosition, 1.0);
+            fragmentPosition = worldPos.xyz;
+            fragmentNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
+            
+            vec4 camCoordPos = viewMatrix * worldPos;
+            v_clip_pos = projectionMatrix * vec4(focalLength * (camCoordPos[0] / abs(camCoordPos[2])), 
+                                           focalLength * (camCoordPos[1] / abs(camCoordPos[2])), 
+                                           camCoordPos[2], 1.0);
+            gl_Position = v_clip_pos;
+        }
+    ''',
+
+    "fragment_shader" : '''
+        #version 330 core
+        #extension GL_OES_standard_derivatives : enable
+
+        in vec3 fragmentPosition;
+        in vec3 fragmentNormal;
+        in vec4 v_clip_pos;
+
+        out vec4 outputColour;
+
+        uniform vec4 objectColour;
+        uniform vec3 camPosition;
+        uniform vec3 lightPosition;
+        uniform vec3 lightColor = vec3(1.0, 1.0, 1.0);
+        uniform float ambientStrength = 0.2;
+        uniform float diffuseStrength = 1.0;
+        uniform float specularStrength = 0.5;
+        uniform float shininess = 32.0;
+        uniform bool useGeometryNormals = true;
+        
+        // Glow parameters
+        uniform float glowIntensity = 2.0;      // Overall glow brightness
+        uniform float pulseAmount = 0.3;        // How much pulsing (0 = no pulse)
+        uniform float time = 0.0;               // For animation effects
+        
+        void main() {
+            vec3 N;
+            
+            if (useGeometryNormals) {
+                // Use the normal from the vertex shader (traditional approach)
+                N = normalize(fragmentNormal);
+            } else {
+                // Calculate normals from derivatives in screen space (better for flat surfaces)
+                vec3 ndc_pos = v_clip_pos.xyz / v_clip_pos.w;
+                vec3 dx = dFdx(ndc_pos);
+                vec3 dy = dFdy(ndc_pos);
+                
+                N = normalize(cross(dx, dy));
+                N *= sign(N.z);
+            }
+            
+            // Calculate pulse effect
+            float pulse = 1.0;
+            if (pulseAmount > 0.0) {
+                pulse = 1.0 + pulseAmount * sin(time * 3.0);
+            }
+            
+            // Ambient component (enhanced by glow)
+            vec3 ambient = ambientStrength * lightColor * glowIntensity * pulse;
+            
+            // Diffuse component
+            vec3 lightDir = normalize(lightPosition - fragmentPosition);
+            float diff = max(dot(N, lightDir), 0.0);
+            vec3 diffuse = diffuseStrength * diff * lightColor;
+            
+            // Specular component (enhanced for glow effect)
+            vec3 viewDir = normalize(camPosition - fragmentPosition);
+            vec3 reflectDir = reflect(-lightDir, N);
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+            vec3 specular = specularStrength * spec * lightColor * glowIntensity * pulse;
+            
+            // Add rim lighting for glow effect at edges
+            float rim = 1.0 - max(dot(viewDir, N), 0.0);
+            rim = smoothstep(0.4, 1.0, rim);
+            vec3 rimLight = rim * objectColour.rgb * glowIntensity * pulse;
+            
+            // Combine all lighting components
+            vec3 result = (ambient + diffuse + specular + rimLight) * objectColour.rgb;
+            
+            // Enhance brightness for glow effect
+            result = min(vec3(1.0, 1.0, 1.0), result * pulse);
+            
+            outputColour = vec4(result, objectColour.a);
+        }
+    '''
+}

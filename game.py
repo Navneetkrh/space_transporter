@@ -4,7 +4,7 @@ from utils.graphics import Object, Camera, Shader
 import sys
 from enum import Enum, auto
 import random
-from assets.objects.objects import Transporter,Planet,SpaceStation
+from assets.objects.objects import Pirate, Transporter,Planet,SpaceStation
 
 class GameScreen(Enum):
     MAIN_MENU = auto()
@@ -25,6 +25,8 @@ class Game:
             self.camera = Camera(self.height, self.width)
             self.shaders = []
             self.gameState = {}
+
+            
             
             # Define world boundaries
             self.worldMin = np.array([-5000, -5000, -5000], dtype=np.float32)
@@ -113,8 +115,29 @@ class Game:
             
             ############################################################################
             # Initialize Pirates (Spawn at random locations within world bounds)
-            self.n_pirates = 20 # for example
-    
+            self.n_pirates = 10  # Number of pirates
+            for i in range(self.n_pirates):
+                pirate = Pirate()
+                
+                # Generate random position (ensure it's not too close to the player start)
+                while True:
+                    random_pos = np.array([
+                        random.uniform(self.worldMin[0], self.worldMax[0]),
+                        random.uniform(self.worldMin[1], self.worldMax[1]),
+                        random.uniform(self.worldMin[2], self.worldMax[2])
+                    ], dtype=np.float32)
+                    
+                    # Check distance from start station
+                    if "start_station" in self.gameState:
+                        distance = np.linalg.norm(random_pos - self.gameState["start_station"].position)
+                        if distance > 500.0:  # Ensure pirates start at a safe distance
+                            break
+                    else:
+                        break
+                
+                pirate.set_position(random_pos)
+                self.gameState["pirates"].append(pirate)
+                self.shaders.append(pirate.shader)
             ############################################################################
             # Initialize minimap arrow (Need to write orthographic projection shader for it)
             
@@ -215,40 +238,41 @@ class Game:
                 self.camera.lookAt = transporter.forward_direction
             
             # Update transporter
-            self.gameState['transporter'].update(inputs,delta_time)
+            self.gameState['transporter'].update(inputs, delta_time)
             
-            # Update transporter (Update velocity, position, and check for collisions)
-            self.gameState['transporter'].update(inputs,delta_time)
+            ############################################################################
+            # Handle laser firing
+            current_time = time['currentTime']
+            if inputs["F"] and self.gameState['transporter'].can_shoot(current_time):
+                # Create a new laser
+                new_laser = self.gameState['transporter'].shoot(current_time)
+                if new_laser:
+                    self.gameState['lasers'].append(new_laser)
+                    # Add the laser's shader to our shader list if it's not already there
+                    if new_laser.shader not in self.shaders:
+                        self.shaders.append(new_laser.shader)
+            
+            # Update all lasers and remove expired ones
+            i = 0
+            while i < len(self.gameState['lasers']):
+                # Update returns True if the laser should be removed
+                if self.gameState['lasers'][i].update(delta_time):
+                    # Remove expired laser
+                    self.gameState['lasers'].pop(i)
+                else:
+                    i += 1
             ############################################################################
 
-
-
-
-
-            ############################################################################
             # Update spacestations (Update velocity and position to revolve around respective planet)
             # Update space stations (orbit around planets)
             for station in self.gameState["spaceStations"]:
                 station.update(delta_time)
 
+            ############################################################################
+            # Check for collision between lasers and other objects (pirates, planets, etc.)
+            # This would be implemented here
+            ############################################################################
 
-            ############################################################################
-            # Update Minimap Arrow: (Set direction based on transporter velocity direction and target direction)
-            
-
-            ############################################################################
-            # Update Lasers (Update position of any currently shot lasers, make sure to despawn them if they go too far to save computation)
-           
-            
-            ############################################################################
-            # Update Pirates (Write logic to update their velocity based on transporter position, and check for collision with laser or transporter)
-            
-
-            ############################################################################
-            # Update Camera (Check for view (3rd person or 1st person) and set position and LookAt accordingly)
-            
-
-            ############################################################################
             if "transporter" in self.gameState and "destination_station" in self.gameState:
                 transporter_pos = self.gameState["transporter"].position
                 dest_station_pos = self.gameState["destination_station"].position
@@ -271,7 +295,8 @@ class Game:
     
             # if self.gameState["transporter"].properties["view"] == 2: # Conditionally draw crosshair
             #     self.gameState["crosshair"].Draw()
-    
+
+            # print("lasers", self.gameState["lasers"])
             for laser in self.gameState["lasers"]:
                 laser.Draw()
             for planet in self.gameState["planets"]:

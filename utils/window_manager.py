@@ -79,7 +79,8 @@ class Window:
             "L_CLICK":False,
             "mouseDelta": [0.0,0.0], # Get mouse offset from center per frame
             "ESCAPE":False,
-            "2":False
+            "2":False,
+            "F":False,
             }
         
         if glfw.get_key(self.window, glfw.KEY_1) == glfw.PRESS:
@@ -108,6 +109,8 @@ class Window:
             inputs["L_CLICK"] = True
         if glfw.get_key(self.window, glfw.KEY_ESCAPE) == glfw.PRESS:
             inputs["ESCAPE"] = True
+        if glfw.get_key(self.window, glfw.KEY_F) == glfw.PRESS:
+            inputs["F"] = True
 
         xpos, ypos = glfw.get_cursor_pos(self.window)
         inputs["mouseDelta"] = [xpos - self.windowWidth/2, ypos - self.windowHeight/2]

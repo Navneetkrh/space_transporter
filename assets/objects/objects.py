@@ -1,8 +1,9 @@
+import random
 import time
 import numpy as np
 import os
 from utils.graphics import Object, Shader
-from assets.shaders.shaders import standard_shader
+from assets.shaders.shaders import standard_shader,laser_shader,minimap_shader,crosshair_shader
 
 def load_obj_file(file_path):
     vertices = []
@@ -59,12 +60,12 @@ def load_and_process_obj(model_path, scale=1.0):
     return properties
 
 class GameObject:
-    def __init__(self, model_path, scale=1.0):
+    def __init__(self, model_path, scale=1.0,shader=standard_shader):
         # Use the existing load_and_process_obj function to get properties
         model_properties = load_and_process_obj(model_path, scale)
         
         # Create shader and graphics object
-        self.shader = Shader(standard_shader["vertex_shader"], standard_shader["fragment_shader"])
+        self.shader = Shader(shader["vertex_shader"], shader["fragment_shader"])
         self.graphics_obj = Object("standard", self.shader, model_properties)
         
         # Common properties for all game objects
@@ -206,12 +207,6 @@ class Transporter(GameObject):
         if inputs["SPACE"]:
             # Apply thrust in the current forward direction (updated in update)
             self.add_force(self.forward_direction, self.thrust_power)
-            
-        # For shooting lasers
-        if inputs.get("F", False):
-            import time  # Ideally, import time at the top of your file
-            current_time = time.time()
-            self.shoot(current_time)
         
     
 
@@ -271,10 +266,12 @@ class Transporter(GameObject):
         super().update(delta_time)
     
     def can_shoot(self, current_time):
-        return current_time - self.last_shot_time >= self.laser_cooldown
+        # return current_time - self.last_shot_time >= self.laser_cooldown
+        return True
     
     def shoot(self, current_time):
         if self.can_shoot(current_time):
+            print("Pew pew!")
             self.last_shot_time = current_time
             
             # Create a laser object
@@ -290,7 +287,7 @@ class Transporter(GameObject):
             laser.set_rotation(self.rotation.copy())
             
             # Give the laser velocity in the forward direction
-            laser_speed = 100.0  # Adjust as needed
+            laser_speed = 1000.0 +np.linalg.norm(self.velocity)# Adjust as needed
             laser.set_velocity(self.forward_direction * laser_speed)
             
             # Set a lifetime for the laser (in seconds)
@@ -319,7 +316,65 @@ class Transporter(GameObject):
 class Pirate(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'pirate.obj')
-        super().__init__(model_path)
+        super().__init__(model_path, scale=5.0)
+        
+        # Set red color for pirates
+        self.set_color(np.array([1.0, 0.2, 0.2, 1.0], dtype=np.float32))
+        
+        # Pirate properties
+        self.speed = 1000.0 + random.uniform(-10.0, 10.0)  # Variable speed
+        self.chase_distance = 30000.0  # Distance at which pirates start chasing
+        self.health = 3  # Hit points (takes 3 laser hits to destroy)
+        self.damage = 100  # Damage dealt on collision
+        self.rotation_speed = 1.0 + random.uniform(-0.5, 0.5)  # For natural movement
+        
+        # Add some random rotation for variety
+        self.set_rotation(np.array([
+            random.uniform(0, np.pi*2),
+            random.uniform(0, np.pi*2),
+            random.uniform(0, np.pi*2)
+        ], dtype=np.float32))
+    
+    def update(self, delta_time, player_position):
+        # Calculate vector to player
+        to_player = player_position - self.position
+        distance_to_player = np.linalg.norm(to_player)
+        
+        # Only chase if within chase distance
+        if distance_to_player < self.chase_distance:
+            # Normalize the direction vector
+            if distance_to_player > 0:
+                direction = to_player / distance_to_player
+            else:
+                direction = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+                
+            # Move toward player with speed
+            self.velocity = direction * self.speed
+            
+            # Gradually rotate to face the player
+            # Calculate desired rotation (simplified)
+            target_rotation = np.arctan2(direction[2], direction[0])
+            current_rotation = self.rotation[1]  # Assuming Y is the up axis
+            
+            # Calculate the shortest angle difference
+            angle_diff = (target_rotation - current_rotation + np.pi) % (2 * np.pi) - np.pi
+            
+            # Gradually rotate toward the target
+            rotation_step = self.rotation_speed * delta_time
+            if abs(angle_diff) > rotation_step:
+                if angle_diff > 0:
+                    self.rotation[1] += rotation_step
+                else:
+                    self.rotation[1] -= rotation_step
+            else:
+                self.rotation[1] = target_rotation
+        
+        # Call parent update to handle movement
+        super().update(delta_time)
+    
+    def take_damage(self, amount):
+        self.health -= amount
+        return self.health <= 0
 
 # Update Planet class
 class Planet(GameObject):
@@ -385,16 +440,17 @@ class Crosshair(GameObject):
 
 class Laser(GameObject):
     def __init__(self):
-        model_path = os.path.join('assets', 'objects', 'models', 'laser.obj')
-        super().__init__(model_path, scale=0.5)
+        model_path = os.path.join('assets', 'objects', 'models', 'planet.obj')
+        super().__init__(model_path, scale=5, shader=laser_shader)
         
         # Set laser color (bright green)
-        self.set_color(np.array([0.3, 1.0, 0.3, 1.0], dtype=np.float32))
+        self.set_color(np.array([1, 0, 0.3, 1.0], dtype=np.float32))
         
         # Laser properties
-        self.lifetime = 3.0  # Seconds before disappearing
+        self.lifetime = 10.0  # Seconds before disappearing
         self.time_alive = 0.0
-        self.speed = 100.0
+        self.speed = 3000
+
         
     def update(self, delta_time):
         # Update position based on velocity
