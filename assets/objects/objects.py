@@ -74,12 +74,15 @@ class GameObject:
         self.rotation_velocity = np.zeros(3, dtype=np.float32)
         self.acceleration = np.zeros(3, dtype=np.float32)
         self.drag_factor = 0.98  # Default drag factor
+
     
     def update(self, delta_time):
         # Base update method to be overridden by child classes
         self.update_position(delta_time)
         self.update_rotation(delta_time)
         self.apply_drag(self.drag_factor)
+    
+
     
     def update_position(self, delta_time):
         # Update position based on velocity
@@ -181,14 +184,18 @@ class Transporter(GameObject):
         self.up_direction = self.local_up.copy()
     
     def process_inputs(self, inputs, delta_time):
-        # Process rotation inputs (using global axes for now)
-        if inputs["W"]:  # Pitch down (rotate around Y axis)
+        # Process rotation inputs (on it's own axis)
+        if inputs["W"] :  # Pitch down (rotate around Y axis)
             self.add_torque([0, 1, 0], self.turn_power)
-        if inputs["S"]:  # Pitch up (rotate around Y axis)
+        if inputs["S"] :  # Pitch up (rotate around Y axis)
             self.add_torque([0, -1, 0], self.turn_power)
-        if inputs["A"]:  # Yaw left (rotate around Z axis)
+        if inputs["A"] and self.local_up.dot(self.up_direction)>0:  # Yaw left (rotate around Z axis)
+            self.add_torque([0, 0, -1], self.turn_power)
+        elif inputs["A"] and self.local_up.dot(self.up_direction)<0:  # Yaw left (rotate around Z axis)
             self.add_torque([0, 0, 1], self.turn_power)
-        if inputs["D"]:  # Yaw right (rotate around Z axis)
+        if inputs["D"] and self.local_up.dot(self.up_direction)>0:  # Yaw right (rotate around Z axis)
+            self.add_torque([0, 0, 1], self.turn_power)
+        elif inputs["D"] and self.local_up.dot(self.up_direction)<0:  # Yaw right (rotate around Z axis)
             self.add_torque([0, 0, -1], self.turn_power)
         if inputs["Q"]:  # Roll left (rotate around Z axis)
             self.add_torque([0, 0, 1], self.turn_power)
@@ -205,6 +212,9 @@ class Transporter(GameObject):
             import time  # Ideally, import time at the top of your file
             current_time = time.time()
             self.shoot(current_time)
+        
+    
+
     
     def update(self, inputs, delta_time):
         # Process inputs first
