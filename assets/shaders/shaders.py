@@ -303,7 +303,7 @@ laser_shader = {
 }
 
 ######################################################
-# Simpler glowing destination shader
+# Enhanced glowing destination shader
 destination_shader = {
     "vertex_shader": '''
         #version 330 core
@@ -339,19 +339,26 @@ destination_shader = {
         void main() {
             vec3 normal = normalize(fragmentNormal);
             vec3 viewDir = normalize(camPosition - fragmentPosition);
+            vec3 lightDir = normalize(lightPosition - fragmentPosition);
             
-            // Add rim lighting (glow at edges)
+            // Basic diffuse lighting
+            float diff = max(dot(normal, lightDir), 0.0);
+            
+            // Enhanced rim lighting (glow at edges)
             float rim = 1.0 - max(dot(viewDir, normal), 0.0);
-            rim = smoothstep(0.5, 1.0, rim);
+            rim = smoothstep(0.3, 1.0, rim);  // Enhanced rim effect (0.3 instead of 0.5)
             
-            // Glowing color (yellow/golden)
-            vec3 glowColor = vec3(1.0, 0.9, 0.5);  // Golden yellow
+            // Distinct glowing color (bright gold)
+            vec3 glowColor = vec3(1.0, 0.9, 0.4) * 1.8;  // Much brighter gold
             
-            // Base color with rim glow
-            vec3 finalColor = mix(objectColour.rgb, glowColor, rim * 0.6);
+            // Base color with enhanced rim glow
+            vec3 finalColor = mix(objectColour.rgb, glowColor, rim * 0.8);  // More glow (0.8 instead of 0.6)
             
-            // Make it brighter overall
-            finalColor *= 1.5;
+            // Boost contrast and brightness
+            finalColor = finalColor * (diff * 0.5 + 0.8);  // Better light response
+            
+            // Make it even brighter overall
+            finalColor *= 1.8;  // Higher boost (1.8 instead of 1.5)
             
             outputColour = vec4(finalColor, objectColour.a);
         }

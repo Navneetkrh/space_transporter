@@ -111,8 +111,11 @@ class Game:
                 self.gameState["transporter"].start_planet = self.gameState["start_station"].parent_planet
                 self.gameState["transporter"].target_planet = self.gameState["destination_station"].parent_planet
                 
-                # Make the destination planet glow
+                # Make the destination planet glow and more distinct
                 dest_planet = self.gameState["destination_station"].parent_planet
+                
+                # Make destination planet larger
+                dest_planet.graphics_obj.properties['scale'] *= 1.2  # 20% larger
                 
                 # Create new shader instance for the destination planet
                 dest_planet.shader = Shader(destination_shader["vertex_shader"], 
@@ -122,8 +125,8 @@ class Game:
                 # Update shader list
                 self.shaders.append(dest_planet.shader)
                 
-                # Set a distinct color for the destination planet
-                dest_planet.set_color(np.array([1.0, 0.9, 0.4, 1.0]))  # Golden color
+                # Set a more vibrant gold color for the destination planet
+                dest_planet.set_color(np.array([1.0, 0.9, 0.3, 1.0]))  # Brighter golden color
                         
             ############################################################################
             # Initialize transporter (Randomly choose start and end planet, and initialize transporter at start planet)
@@ -371,5 +374,6 @@ class Game:
             if "minimap_arrow" in self.gameState:
                 self.gameState["minimap_arrow"].Draw()
             ######################################################
+
 
 
