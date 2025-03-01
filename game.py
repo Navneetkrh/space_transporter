@@ -472,61 +472,65 @@ class Game:
         # Convert from world to screen direction
         angle = np.arctan2(direction[0], direction[2])  # Using X,Z plane for top-down view
         
-        # Create arrow parameters
-        arrow_size = 100.0  # Base size
-        # Scale based on distance (closer = smaller)
-        size_factor = min(100, 50.0 / distance) if distance > 0 else 1.0
-        arrow_size *= size_factor
-        
         # Position on screen (fixed position in top-right corner)
-        pos_x = self.width - 70
-        pos_y = 70
+        pos_x = self.width - 80
+        pos_y = 80
         
         # Draw the background circle
         draw_list = imgui.get_background_draw_list()
         
         # Draw background circle
-        circle_radius = 40
-        bg_color = imgui.get_color_u32_rgba(1, 1, 1, 0.6)  # Semi-transparent black
-        draw_list.add_circle(pos_x, pos_y, circle_radius, bg_color, 16, 2.0)
+        circle_radius = 50
+        bg_color = imgui.get_color_u32_rgba(0.0, 0.0, 0.0, 0.5)  # Semi-transparent black
+        draw_list.add_circle_filled(pos_x, pos_y, circle_radius, bg_color)
+        border_color = imgui.get_color_u32_rgba(1.0, 1.0, 1.0, 0.7)  # White border
+        draw_list.add_circle(pos_x, pos_y, circle_radius, border_color, 16, 1.5)
         
-        # Calculate arrow points
-        # Convert polar to cartesian coordinates
-        tip_length = 25.0 * size_factor
-        half_width = 10.0 * size_factor
-        shaft_width = 5.0 * size_factor
+        # Arrow dimensions
+        arrow_length = 35.0  # Total length of arrow
+        head_length = 15.0   # Length of arrow head
+        arrow_width = 8.0    # Width of arrow shaft
+        head_width = 18.0    # Width of arrow head at its base
         
-        # Arrow tip position
-        tip_x = pos_x + np.sin(angle) * tip_length
-        tip_y = pos_y + np.cos(angle) * tip_length
+        # Calculate arrow points based on angle
+        cos_angle = np.cos(angle)
+        sin_angle = np.sin(angle)
         
-        # Arrow base positions (perpendicular to direction)
-        perp_angle = angle + np.pi/2
-        perp_x = np.sin(perp_angle)
-        perp_y = np.cos(perp_angle)
+        # Arrow tip (head point)
+        tip_x = pos_x + arrow_length * sin_angle
+        tip_y = pos_y + arrow_length * cos_angle
         
-        # Arrow head vertices
-        left_x = tip_x - half_width * perp_x
-        left_y = tip_y - half_width * perp_y
+        # Base of arrow head (where it meets the shaft)
+        head_base_x = pos_x + (arrow_length - head_length) * sin_angle
+        head_base_y = pos_y + (arrow_length - head_length) * cos_angle
         
-        right_x = tip_x + half_width * perp_x
-        right_y = tip_y + half_width * perp_y
+        # Arrow shaft start point (tail)
+        tail_x = pos_x - arrow_length/3 * sin_angle
+        tail_y = pos_y - arrow_length/3 * cos_angle
         
-        # Arrow base (top of shaft)
-        base_distance = 15.0 * size_factor
-        base_x = pos_x + np.sin(angle) * base_distance
-        base_y = pos_y + np.cos(angle) * base_distance
+        # Calculate perpendicular direction for width
+        perp_x = -cos_angle
+        perp_y = sin_angle
         
-        # Shaft points
-        shaft_left_x = base_x - shaft_width * perp_x
-        shaft_left_y = base_y - shaft_width * perp_y
+        # Points for arrow head (triangle)
+        left_corner_x = head_base_x + head_width/2 * perp_x
+        left_corner_y = head_base_y + head_width/2 * perp_y
         
-        shaft_right_x = base_x + shaft_width * perp_x
-        shaft_right_y = base_y + shaft_width * perp_y
+        right_corner_x = head_base_x - head_width/2 * perp_x
+        right_corner_y = head_base_y - head_width/2 * perp_y
         
-        # Calculate the tail position (opposite of direction)
-        tail_x = pos_x - np.sin(angle) * shaft_width
-        tail_y = pos_y - np.cos(angle) * shaft_width
+        # Points for arrow shaft (rectangle)
+        shaft_left_top_x = head_base_x + arrow_width/2 * perp_x
+        shaft_left_top_y = head_base_y + arrow_width/2 * perp_y
+        
+        shaft_right_top_x = head_base_x - arrow_width/2 * perp_x
+        shaft_right_top_y = head_base_y - arrow_width/2 * perp_y
+        
+        shaft_left_bottom_x = tail_x + arrow_width/2 * perp_x
+        shaft_left_bottom_y = tail_y + arrow_width/2 * perp_y
+        
+        shaft_right_bottom_x = tail_x - arrow_width/2 * perp_x
+        shaft_right_bottom_y = tail_y - arrow_width/2 * perp_y
         
         # Arrow color based on distance
         # Red when far, green when close
@@ -535,20 +539,45 @@ class Game:
         arrow_color = imgui.get_color_u32_rgba(r, g, 0.2, 1.0)
         
         # Draw the arrow head (triangle)
-        draw_list.add_triangle(tip_x, tip_y, left_x, left_y, right_x, right_y, arrow_color, 2.0)
+        draw_list.add_triangle_filled(
+            tip_x, tip_y,
+            left_corner_x, left_corner_y,
+            right_corner_x, right_corner_y,
+            arrow_color
+        )
         
         # Draw the arrow shaft (rectangle)
+        draw_list.add_quad_filled(
+            shaft_left_top_x, shaft_left_top_y,
+            shaft_right_top_x, shaft_right_top_y,
+            shaft_right_bottom_x, shaft_right_bottom_y,
+            shaft_left_bottom_x, shaft_left_bottom_y,
+            arrow_color
+        )
+        
+        # Add an outline for better visibility
+        outline_color = imgui.get_color_u32_rgba(1.0, 1.0, 1.0, 0.7)  # White outline
+        
+        # Outline the head
+        draw_list.add_triangle(
+            tip_x, tip_y,
+            left_corner_x, left_corner_y,
+            right_corner_x, right_corner_y,
+            outline_color, 1.0
+        )
+        
+        # Outline the shaft
         draw_list.add_quad(
-            shaft_left_x, shaft_left_y,
-            shaft_right_x, shaft_right_y,
-            tail_x + shaft_width * perp_x, tail_y + shaft_width * perp_y,
-            tail_x - shaft_width * perp_x, tail_y - shaft_width * perp_y,
-            arrow_color, 2.0
+            shaft_left_top_x, shaft_left_top_y,
+            shaft_right_top_x, shaft_right_top_y,
+            shaft_right_bottom_x, shaft_right_bottom_y,
+            shaft_left_bottom_x, shaft_left_bottom_y,
+            outline_color, 1.0
         )
         
         # Optional: Add distance indicator text
         distance_text = f"{int(distance)}u"
-        text_color = imgui.get_color_u32_rgba(1, 1, 1, 1)
+        text_color = imgui.get_color_u32_rgba(1.0, 1.0, 1.0, 1.0)
         draw_list.add_text(pos_x - 15, pos_y + circle_radius + 5, text_color, distance_text)
         
         # Render ImGui
