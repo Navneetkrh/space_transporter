@@ -61,6 +61,63 @@ minimap_shader = {
 }
 
 ######################################################
+# 2D minimap arrow shader with no perspective distortion
+minimap_arrow_shader = {
+    "vertex_shader": '''
+        #version 330 core
+        layout(location = 0) in vec3 vertexPosition;
+        layout(location = 1) in vec3 vertexNormal;
+        
+        uniform vec2 screenPosition;  // Position on screen (normalized 0-1)
+        uniform float rotation;       // Rotation in radians
+        uniform float scale;          // Scale factor
+        
+        out vec3 fragmentNormal;
+        
+        void main() {
+            // Scale the vertex
+            vec2 scaledPos = vertexPosition.xy * scale;
+            
+            // Rotate the vertex
+            float cosA = cos(rotation);
+            float sinA = sin(rotation);
+            vec2 rotatedPos = vec2(
+                scaledPos.x * cosA - scaledPos.y * sinA,
+                scaledPos.x * sinA + scaledPos.y * cosA
+            );
+            
+            // Position on screen (convert from 0-1 to clip space -1 to 1)
+            vec2 screenPos = (screenPosition * 2.0) - 1.0;
+            
+            // Final position
+            gl_Position = vec4(screenPos + rotatedPos, 0.0, 1.0);
+            
+            // Pass normal to fragment shader
+            fragmentNormal = vertexNormal;
+        }
+    ''',
+    
+    "fragment_shader": '''
+        #version 330 core
+        in vec3 fragmentNormal;
+        
+        out vec4 outputColour;
+        
+        uniform vec4 arrowColor;
+        
+        void main() {
+            // Apply a simple light effect
+            float light = max(0.5, dot(normalize(fragmentNormal), normalize(vec3(1.0, 1.0, 1.0))));
+            outputColour = arrowColor * light;
+            
+            // Add a glow effect
+            float intensity = 1.2;  // Brightness multiplier
+            outputColour.rgb *= intensity;
+        }
+    '''
+}
+
+######################################################
 # Enhanced crosshair shader for better visibility
 crosshair_shader = {
     "vertex_shader": '''
