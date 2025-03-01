@@ -431,14 +431,10 @@ class Game:
             for i, shader in enumerate(self.shaders):
                self.camera.Update(shader)
     
-            self.gameState["transporter"].Draw()
-            # self.gameState["stars"].Draw()
-            # self.gameState["arrow"].Draw()
+            # Only draw the transporter in third-person view
+            if self.gameState["transporter"].view == 1:  # Third-person view
+                self.gameState["transporter"].Draw()
     
-            # if self.gameState["transporter"].properties["view"] == 2: # Conditionally draw crosshair
-            #     self.gameState["crosshair"].Draw()
-
-            # print("lasers", self.gameState["lasers"])
             for laser in self.gameState["lasers"]:
                 laser.Draw()
             for planet in self.gameState["planets"]:
@@ -453,7 +449,14 @@ class Game:
             # Only draw crosshair in first-person view
             if self.gameState["transporter"].view == 2:
                 self.gameState["crosshair"].Draw()
-            ######################################################
+            
+            # Update the crosshair position in first-person mode
+            if self.gameState["transporter"].view == 2:
+                transporter = self.gameState["transporter"]
+                self.gameState["crosshair"].update(
+                    transporter.position,
+                    transporter.forward_direction
+                )
 
 
 
