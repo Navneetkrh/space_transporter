@@ -198,9 +198,9 @@ class Transporter(GameObject):
             self.add_torque([0, 0, 1], self.turn_power)
         elif inputs["D"] and self.local_up.dot(self.up_direction)<0:  # Yaw right (rotate around Z axis)
             self.add_torque([0, 0, -1], self.turn_power)
-        if inputs["Q"]:  # Roll left (rotate around Z axis)
+        if inputs["Q"]:  # Roll left (rotate around X axis)
             self.add_torque([1, 0, 0], self.turn_power)
-        if inputs["E"]:  # Roll right (rotate around Z axis)
+        if inputs["E"]:  # Roll right (rotate around X axis)
             self.add_torque([-1, 0, 0], self.turn_power)
             
         # Process acceleration input (spacebar)
