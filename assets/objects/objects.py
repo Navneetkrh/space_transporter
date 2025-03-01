@@ -614,8 +614,29 @@ class MinimapArrow(GameObject):
 
 class Crosshair(GameObject):
     def __init__(self):
-        model_path = os.path.join('assets', 'objects', 'models', 'crosshair.obj')
-        super().__init__(model_path, scale=0.1)
+        model_path = os.path.join('assets', 'objects', 'models', 'direction_arrow.obj')
+        super().__init__(model_path, scale=0.05, shader=crosshair_shader)
+        
+        # Set a bright, visible color for the crosshair
+        self.set_color(np.array([1.0, 0.2, 0.2, 1.0], dtype=np.float32))
+        
+        # Crosshair properties
+        self.distance_from_camera = 10.0  # Distance from camera
+        
+    def update(self, camera_position, camera_forward):
+        """Update crosshair position based on camera."""
+        # Position crosshair in front of camera
+        self.set_position(camera_position + camera_forward * self.distance_from_camera)
+        
+        # Align crosshair with camera view
+        direction = camera_forward / np.linalg.norm(camera_forward)
+        
+        # Calculate rotation to face camera
+        # This makes the crosshair always face the player
+        pitch = np.arcsin(direction[1])
+        yaw = np.arctan2(direction[0], direction[2])
+        
+        self.set_rotation(np.array([pitch, yaw, 0.0], dtype=np.float32))
 
 class Laser(GameObject):
     def __init__(self):

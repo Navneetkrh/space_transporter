@@ -61,49 +61,57 @@ minimap_shader = {
 }
 
 ######################################################
-# Crosshair shader with orthographic projection
+# Enhanced crosshair shader for better visibility
 crosshair_shader = {
-    "vertex_shader" : '''
+    "vertex_shader": '''
         #version 330 core
         layout(location = 0) in vec3 vertexPosition;
+        layout(location = 1) in vec3 vertexNormal;
 
-        uniform mat4 orthoProjectionMatrix;
+        uniform mat4 modelMatrix;
+        uniform mat4 viewMatrix;
+        uniform mat4 projectionMatrix;
+        uniform float focalLength;
+        
+        out vec3 fragmentPosition;
+        out vec3 fragmentNormal;
 
         void main() {
-            gl_Position = orthoProjectionMatrix * vec4(vertexPosition, 1.0);
+            vec4 worldPos = modelMatrix * vec4(vertexPosition, 1.0);
+            fragmentPosition = worldPos.xyz;
+            fragmentNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
+            
+            // Use regular projection matrix for crosshair
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
         }
     ''',
 
-    "fragment_shader" : '''
+    "fragment_shader": '''
         #version 330 core
+        in vec3 fragmentPosition;
+        in vec3 fragmentNormal;
 
         out vec4 outputColour;
 
-        uniform vec4 crosshairColour;
-        uniform float crosshairThickness;
-        uniform vec2 screenSize;
+        uniform vec4 objectColour;
+        uniform vec3 camPosition;
 
         void main() {
-            vec2 center = gl_FragCoord.xy - (screenSize / 2.0);
-            float horizontalLine = abs(center.y);
-            float verticalLine = abs(center.x);
+            vec3 normal = normalize(fragmentNormal);
+            vec3 viewDir = normalize(camPosition - fragmentPosition);
             
-            // Create crosshair with anti-aliasing at edges
-            if (horizontalLine < crosshairThickness || verticalLine < crosshairThickness) {
-                float alpha = 1.0;
-                
-                // Edge fading for anti-aliasing
-                if (horizontalLine > crosshairThickness - 1.0 && horizontalLine < crosshairThickness) {
-                    alpha = 1.0 - (horizontalLine - (crosshairThickness - 1.0));
-                }
-                else if (verticalLine > crosshairThickness - 1.0 && verticalLine < crosshairThickness) {
-                    alpha = 1.0 - (verticalLine - (crosshairThickness - 1.0));
-                }
-                
-                outputColour = vec4(crosshairColour.rgb, crosshairColour.a * alpha);
-            } else {
-                discard;
-            }
+            // Glow effect based on view angle
+            float rim = 1.0 - max(dot(viewDir, normal), 0.0);
+            rim = smoothstep(0.5, 1.0, rim);
+            
+            // Combine basic color with glow
+            vec3 glowColor = vec3(1.0, 0.5, 0.5) * 1.5;  // Bright reddish glow
+            vec3 finalColor = mix(objectColour.rgb, glowColor, rim * 0.6);
+            
+            // Always keep crosshair bright
+            finalColor = finalColor * 1.5;
+            
+            outputColour = vec4(finalColor, objectColour.a);
         }
     '''
 }

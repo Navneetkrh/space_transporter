@@ -165,8 +165,23 @@ class Game:
             self.shaders.append(self.gameState["minimap_arrow"].shader)
 
             ############################################################################
+            # Initialize crosshair for first-person view
+            from assets.objects.objects import Crosshair
+            self.gameState["crosshair"] = Crosshair()
+            self.shaders.append(self.gameState["crosshair"].shader)
 
     def ProcessFrame(self, inputs, time):
+        # Handle view toggle with '1' key
+        if inputs["1"] and not hasattr(self, "key_cooldown"):
+            if self.screen == GameScreen.GAME and "transporter" in self.gameState:
+                self.gameState["transporter"].toggle_view()
+                self.key_cooldown = 0.2  # Set cooldown to prevent multiple toggles
+    
+        if hasattr(self, "key_cooldown"):
+            self.key_cooldown -= time["deltaTime"]
+            if self.key_cooldown <= 0:
+                delattr(self, "key_cooldown")
+                
         self.UpdateScene(inputs, time)
         self.DrawScene()
         self.DrawText()
@@ -237,8 +252,11 @@ class Game:
             imgui.set_next_window_size(window_w, window_h)
             imgui.begin("GAME OVER", False, imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_COLLAPSE | imgui.WINDOW_NO_RESIZE)
             
-            # Add detailed game over message
-            imgui.text_colored(1.0, 0.3, 0.3, 1.0, "Your ship was destroyed by a pirate vessel!")
+            # Fix parameter order for text_colored (text first, then colors)
+            imgui.push_style_color(imgui.COLOR_TEXT, 1.0, 0.3, 0.3, 1.0)
+            imgui.text("Your ship was destroyed by a pirate vessel!")
+            imgui.pop_style_color()
+            
             imgui.spacing()
             imgui.text("The cargo was lost in the deep space.")
             imgui.text("Better luck on your next mission, captain.")
@@ -264,21 +282,35 @@ class Game:
     def UpdateScene(self, inputs, time):
         delta_time = time['deltaTime']
         if self.screen == GameScreen.GAME:
-            # Update camera to follow transporter's rotation as well
+            # Update transporter first
             transporter = self.gameState["transporter"]
+            transporter.update(inputs, delta_time)
             transporter_pos = transporter.position
-
-            # Calculate camera offset based on transporter's orientation vectors
-            behind_offset = -transporter.forward_direction * 50  # 50 units behind
-            up_offset = transporter.up_direction * 20  # 20 units above
             
-            # Set camera position using the transformed offset
-            self.camera.position = transporter_pos + behind_offset + up_offset
-            self.camera.up = transporter.up_direction
-            
-            # Make camera look at a point slightly ahead of the transporter
-            look_ahead_point = transporter_pos + transporter.forward_direction * 10
-            self.camera.lookAt = look_ahead_point - self.camera.position
+            # Update camera based on view mode (first vs third person)
+            if transporter.view == 1:  # Third-person view
+                # Calculate camera offset based on transporter's orientation vectors
+                behind_offset = -transporter.forward_direction * 50  # 50 units behind
+                up_offset = transporter.up_direction * 20  # 20 units above
+                
+                # Set camera position using the transformed offset
+                self.camera.position = transporter_pos + behind_offset + up_offset
+                self.camera.up = transporter.up_direction
+                
+                # Make camera look at a point slightly ahead of the transporter
+                look_ahead_point = transporter_pos + transporter.forward_direction * 10
+                self.camera.lookAt = look_ahead_point - self.camera.position
+            else:  # First-person view
+                # Set camera position at the transporter's position
+                self.camera.position = transporter_pos + transporter.up_direction * 5  # Slightly above for better view
+                self.camera.up = transporter.up_direction
+                
+                # Set lookAt to point in the forward direction
+                self.camera.lookAt = transporter.forward_direction * 10
+                
+                # Position the crosshair in the center of view
+                crosshair_pos = transporter_pos + transporter.forward_direction * 10
+                self.gameState["crosshair"].set_position(crosshair_pos)
             
             # Ensure lookAt vector is never zero
             if np.all(np.abs(self.camera.lookAt) < 1e-6):
@@ -418,6 +450,9 @@ class Game:
             # Draw only the minimap arrow
             if "minimap_arrow" in self.gameState:
                 self.gameState["minimap_arrow"].Draw()
+            # Only draw crosshair in first-person view
+            if self.gameState["transporter"].view == 2:
+                self.gameState["crosshair"].Draw()
             ######################################################
 
 
