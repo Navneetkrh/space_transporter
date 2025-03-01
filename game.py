@@ -164,12 +164,6 @@ class Game:
             )
             self.shaders.append(self.gameState["minimap_arrow"].shader)
 
-            ############################################################################
-            # Initialize crosshair for first-person view
-            from assets.objects.objects import Crosshair
-            self.gameState["crosshair"] = Crosshair()
-            self.shaders.append(self.gameState["crosshair"].shader)
-
     def ProcessFrame(self, inputs, time):
         # Handle view toggle with '1' key
         if inputs["1"] and not hasattr(self, "key_cooldown"):
@@ -308,9 +302,7 @@ class Game:
                 # Set lookAt to point in the forward direction
                 self.camera.lookAt = transporter.forward_direction * 10
                 
-                # Position the crosshair in the center of view
-                crosshair_pos = transporter_pos + transporter.forward_direction * 10
-                self.gameState["crosshair"].set_position(crosshair_pos)
+                # No 3D crosshair positioning needed - we'll draw a 2D overlay instead
             
             # Ensure lookAt vector is never zero
             if np.all(np.abs(self.camera.lookAt) < 1e-6):
@@ -436,27 +428,55 @@ class Game:
                 self.gameState["transporter"].Draw()
     
             for laser in self.gameState["lasers"]:
-                laser.Draw()
+                laser.Draw()        
             for planet in self.gameState["planets"]:
                 planet.Draw()
             for spaceStation in self.gameState["spaceStations"]:
-                spaceStation.Draw()
+                spaceStation.Draw()        
             for pirate in self.gameState["pirates"]:
                 pirate.Draw()
-            # Draw only the minimap arrow
+            
+            # Draw the minimap arrow
             if "minimap_arrow" in self.gameState:
                 self.gameState["minimap_arrow"].Draw()
-            # Only draw crosshair in first-person view
-            if self.gameState["transporter"].view == 2:
-                self.gameState["crosshair"].Draw()
             
-            # Update the crosshair position in first-person mode
-            if self.gameState["transporter"].view == 2:
-                transporter = self.gameState["transporter"]
-                self.gameState["crosshair"].update(
-                    transporter.position,
-                    transporter.forward_direction
-                )
+            # Draw a simple crosshair in first-person view
+            if self.gameState["transporter"].view == 2:  # First-person view
+                self.DrawCrosshair()
+
+    def DrawCrosshair(self):
+        """Draw a simple + crosshair in the center of the screen."""
+        imgui.new_frame()
+        
+        # Calculate center position
+        center_x = self.width / 2
+        center_y = self.height / 2
+        
+        # Set crosshair size and color
+        size = 10.0
+        thickness = 2.0
+        color = (1.0, 0.2, 0.2, 1.0)  # Red crosshair
+        
+        # Create a crosshair using ImGui drawing commands
+        draw_list = imgui.get_background_draw_list()
+        
+        # Draw horizontal line
+        draw_list.add_line(
+            center_x - size, center_y,
+            center_x + size, center_y,
+            imgui.get_color_u32_rgba(*color), thickness
+        )
+        
+        # Draw vertical line
+        draw_list.add_line(
+            center_x, center_y - size,
+            center_x, center_y + size,
+            imgui.get_color_u32_rgba(*color), thickness
+        )
+        
+        # Render ImGui (crosshair only)
+        imgui.render()
+        self.gui.render(imgui.get_draw_data())
 
 
 

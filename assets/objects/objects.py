@@ -307,7 +307,7 @@ class Transporter(GameObject):
             laser.set_rotation(self.rotation.copy())
             
             # Give the laser velocity in the forward direction
-            laser_speed = 1000.0 +np.linalg.norm(self.velocity)# Adjust as needed
+            laser_speed = laser.speed+np.linalg.norm(self.velocity)# Adjust as needed
             laser.set_velocity(self.forward_direction * laser_speed)
             
             # Set a lifetime for the laser (in seconds)
