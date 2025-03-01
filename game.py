@@ -444,19 +444,25 @@ class Game:
         self.gui.render(imgui.get_draw_data())
 
     def DrawMinimapArrow(self):
-        """Draw a 2D arrow pointing to the destination."""
+        """Draw a 2D arrow pointing to the destination relative to player orientation."""
         if "destination_station" not in self.gameState or "transporter" not in self.gameState:
             return
             
         imgui.new_frame()
         
-        # Get positions
-        player_pos = self.gameState["transporter"].position
+        # Get positions and player orientation
+        transporter = self.gameState["transporter"]
+        player_pos = transporter.position
         destination_pos = self.gameState["destination_station"].position
         
-        # Calculate direction to destination
-        direction = destination_pos - player_pos
-        distance = np.linalg.norm(direction)
+        # Get player orientation vectors
+        forward_dir = transporter.forward_direction  # -X direction in world space
+        right_dir = transporter.right_direction      # Y direction in world space
+        up_dir = transporter.up_direction            # Z direction in world space
+        
+        # Calculate vector to destination (world space)
+        world_direction = destination_pos - player_pos
+        distance = np.linalg.norm(world_direction)
         
         # Skip if we're very close
         if distance < 10:
@@ -464,13 +470,21 @@ class Game:
             self.gui.render(imgui.get_draw_data())
             return
         
-        # Normalize direction
+        # Normalize world direction
         if distance > 0:
-            direction = direction / distance
+            world_direction = world_direction / distance
         
-        # Calculate angle to destination (in screen space)
-        # Convert from world to screen direction
-        angle = np.arctan2(direction[0], direction[2])  # Using X,Z plane for top-down view
+        # Transform direction vector to player's local space
+        # Project world_direction onto the player's local axes
+        local_forward = np.dot(world_direction, forward_dir)  # How much in player's forward direction
+        local_right = np.dot(world_direction, right_dir)      # How much in player's right direction
+        local_up = np.dot(world_direction, up_dir)            # How much in player's up direction
+        
+        # Calculate angle in player's local XY plane (forward-right plane)
+        # Critical fix: adjust angle calculation so that forward direction (local_forward) corresponds to North (up)
+        # atan2(x, y) gives angle where (0,1) is 0 radians, and (1,0) is π/2 radians
+        # We want forward to be up, so we need to use local_right as x and local_forward as y
+        angle = np.arctan2(-local_right, local_forward)  # Negate local_right to fix direction
         
         # Position on screen (fixed position in top-right corner)
         pos_x = self.width - 80
@@ -486,6 +500,19 @@ class Game:
         border_color = imgui.get_color_u32_rgba(1.0, 1.0, 1.0, 0.7)  # White border
         draw_list.add_circle(pos_x, pos_y, circle_radius, border_color, 16, 1.5)
         
+        # Draw "Forward" indicator (always points up to indicate the player's forward direction)
+        forward_length = 15.0
+        forward_color = imgui.get_color_u32_rgba(0.7, 0.7, 0.7, 0.6)  # Subtle gray
+        draw_list.add_line(
+            pos_x, pos_y,
+            pos_x, pos_y - forward_length,
+            forward_color, 1.0
+        )
+        draw_list.add_text(
+            pos_x - 5, pos_y - forward_length - 12,
+            forward_color, "F"
+        )
+        
         # Arrow dimensions
         arrow_length = 35.0  # Total length of arrow
         head_length = 15.0   # Length of arrow head
@@ -493,23 +520,23 @@ class Game:
         head_width = 18.0    # Width of arrow head at its base
         
         # Calculate arrow points based on angle
-        cos_angle = np.cos(angle)
         sin_angle = np.sin(angle)
+        cos_angle = np.cos(angle)
         
         # Arrow tip (head point)
         tip_x = pos_x + arrow_length * sin_angle
-        tip_y = pos_y + arrow_length * cos_angle
+        tip_y = pos_y - arrow_length * cos_angle  # Negative because screen Y increases downward
         
         # Base of arrow head (where it meets the shaft)
         head_base_x = pos_x + (arrow_length - head_length) * sin_angle
-        head_base_y = pos_y + (arrow_length - head_length) * cos_angle
+        head_base_y = pos_y - (arrow_length - head_length) * cos_angle
         
         # Arrow shaft start point (tail)
-        tail_x = pos_x - arrow_length/3 * sin_angle
-        tail_y = pos_y - arrow_length/3 * cos_angle
+        tail_x = pos_x + arrow_length/3 * sin_angle * -0.5
+        tail_y = pos_y - arrow_length/3 * cos_angle * -0.5
         
         # Calculate perpendicular direction for width
-        perp_x = -cos_angle
+        perp_x = cos_angle
         perp_y = sin_angle
         
         # Points for arrow head (triangle)
@@ -532,11 +559,19 @@ class Game:
         shaft_right_bottom_x = tail_x - arrow_width/2 * perp_x
         shaft_right_bottom_y = tail_y - arrow_width/2 * perp_y
         
-        # Arrow color based on distance
-        # Red when far, green when close
-        r = min(1.0, distance / 5000.0)  # Red component decreases with proximity
-        g = 1.0 - (r * 0.7)  # Green component increases with proximity
-        arrow_color = imgui.get_color_u32_rgba(r, g, 0.2, 1.0)
+        # Arrow color based on distance and whether destination is in front or behind
+        if local_forward > 0:  # Destination is in front of player
+            # Green to yellow based on distance
+            g = min(1.0, 0.8 + 0.2 * local_forward)
+            r = min(1.0, (1.0 - local_forward) + distance / 10000.0)
+            b = 0.2
+        else:  # Destination is behind player
+            # Blue to purple based on distance
+            b = min(1.0, 0.8 - 0.2 * local_forward)  # Higher when more negative
+            r = min(1.0, abs(local_forward) + distance / 10000.0)
+            g = 0.2
+        
+        arrow_color = imgui.get_color_u32_rgba(r, g, b, 1.0)
         
         # Draw the arrow head (triangle)
         draw_list.add_triangle_filled(
@@ -556,7 +591,7 @@ class Game:
         )
         
         # Add an outline for better visibility
-        outline_color = imgui.get_color_u32_rgba(1.0, 1.0, 1.0, 0.7)  # White outline
+        outline_color = imgui.get_color_u32_rgba(1.0, 1.0, 1.0, 0.7)  # White border
         
         # Outline the head
         draw_list.add_triangle(
@@ -575,10 +610,39 @@ class Game:
             outline_color, 1.0
         )
         
-        # Optional: Add distance indicator text
-        distance_text = f"{int(distance)}u"
+        # Generate directional indicator text
+        # Determine relative direction for text display
+        direction_text = ""
+        if abs(local_forward) > abs(local_right):
+            # More forward/backward than left/right
+            if local_forward > 0:
+                direction_text = "Forward"
+            else:
+                direction_text = "Behind"
+        else:
+            # More left/right than forward/backward
+            if local_right > 0:
+                direction_text = "Left"  # Was "Right" before
+            else:
+                direction_text = "Right"  # Was "Left" before
+        
+        # Add elevation indicator
+        elevation_text = ""
+        if abs(local_up) > 0.3:  # Only show when significant
+            if local_up > 0:
+                elevation_text = "Above"
+            else:
+                elevation_text = "Below"
+        
+        # Combine all info for display
+        info_text = f"{int(distance)}u {direction_text}"
+        if elevation_text:
+            info_text += f" {elevation_text}"
+        
+        # Display the text below the minimap
         text_color = imgui.get_color_u32_rgba(1.0, 1.0, 1.0, 1.0)
-        draw_list.add_text(pos_x - 15, pos_y + circle_radius + 5, text_color, distance_text)
+        text_width = len(info_text) * 7
+        draw_list.add_text(pos_x - text_width/2, pos_y + circle_radius + 5, text_color, info_text)
         
         # Render ImGui
         imgui.render()
