@@ -238,11 +238,11 @@ laser_shader = {
         uniform vec4 objectColour;
         uniform vec3 camPosition;
         uniform vec3 lightPosition;
-        uniform vec3 lightColor = vec3(1.0, 1.0, 1.0);
-        uniform float ambientStrength = 0.2;
+        uniform vec3 lightColor = vec3(1, 0, 0);
+        uniform float ambientStrength = 0.8;
         uniform float diffuseStrength = 1.0;
         uniform float specularStrength = 0.5;
-        uniform float shininess = 32.0;
+        uniform float shininess = 100.0;
         uniform bool useGeometryNormals = true;
         
         // Glow parameters
@@ -304,63 +304,4 @@ laser_shader = {
 
 ######################################################
 # Enhanced glowing destination shader
-destination_shader = {
-    "vertex_shader": '''
-        #version 330 core
-        layout(location = 0) in vec3 vertexPosition;
-        layout(location = 1) in vec3 vertexNormal;
-
-        uniform mat4 modelMatrix;
-        uniform mat4 viewMatrix;
-        uniform mat4 projectionMatrix;
-        
-        out vec3 fragmentPosition;
-        out vec3 fragmentNormal;
-
-        void main() {
-            vec4 worldPos = modelMatrix * vec4(vertexPosition, 1.0);
-            fragmentPosition = worldPos.xyz;
-            fragmentNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
-            gl_Position = projectionMatrix * viewMatrix * worldPos;
-        }
-    ''',
-
-    "fragment_shader": '''
-        #version 330 core
-        in vec3 fragmentPosition;
-        in vec3 fragmentNormal;
-
-        out vec4 outputColour;
-
-        uniform vec4 objectColour;
-        uniform vec3 camPosition;
-        uniform vec3 lightPosition;
-
-        void main() {
-            vec3 normal = normalize(fragmentNormal);
-            vec3 viewDir = normalize(camPosition - fragmentPosition);
-            vec3 lightDir = normalize(lightPosition - fragmentPosition);
-            
-            // Basic diffuse lighting
-            float diff = max(dot(normal, lightDir), 0.0);
-            
-            // Enhanced rim lighting (glow at edges)
-            float rim = 1.0 - max(dot(viewDir, normal), 0.0);
-            rim = smoothstep(0.3, 1.0, rim);  // Enhanced rim effect (0.3 instead of 0.5)
-            
-            // Distinct glowing color (bright gold)
-            vec3 glowColor = vec3(1.0, 0.9, 0.4) * 1.8;  // Much brighter gold
-            
-            // Base color with enhanced rim glow
-            vec3 finalColor = mix(objectColour.rgb, glowColor, rim * 0.8);  // More glow (0.8 instead of 0.6)
-            
-            // Boost contrast and brightness
-            finalColor = finalColor * (diff * 0.5 + 0.8);  // Better light response
-            
-            // Make it even brighter overall
-            finalColor *= 1.8;  // Higher boost (1.8 instead of 1.5)
-            
-            outputColour = vec4(finalColor, objectColour.a);
-        }
-    '''
-}
+destination_shader = laser_shader.copy()
