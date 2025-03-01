@@ -336,17 +336,27 @@ class Transporter(GameObject):
 class Pirate(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'pirate.obj')
-        super().__init__(model_path, scale=5.0)
+        # Increase pirate size significantly
+        super().__init__(model_path, scale=20.0)  # Changed from 5.0 to 20.0
         
-        # Set red color for pirates
-        self.set_color(np.array([1.0, 0.2, 0.2, 1.0], dtype=np.float32))
+        # Set bluish-green color for pirates
+        self.set_color(np.array([0.2, 0.8, 0.7, 1.0], dtype=np.float32))
         
         # Pirate properties
-        self.speed = 30.0 + random.uniform(-50.0, 50.0)  # Variable speed
-        self.chase_distance = 30000.0  # Distance at which pirates start chasing
-        self.health = 3  # Hit points (takes 3 laser hits to destroy)
+        self.base_speed = 100.0  # Increased base speed (was 30.0)
+        self.speed = self.base_speed + random.uniform(-20.0, 80.0)  # More variability in higher range
+        self.patrol_speed = self.base_speed * 0.3  # Slower when patrolling
+        self.chase_distance = 30000.0  # Distance at which pirates detect players
+        self.health = 3  # Hit points
         self.damage = 100  # Damage dealt on collision
         self.rotation_speed = 1.0 + random.uniform(-0.5, 0.5)  # For natural movement
+        self.collision_radius = 80  # Bigger collision hitbox (was implicitly 20.0)
+        
+        # Patrol behavior properties
+        self.patrol_direction = self.generate_random_direction()
+        self.direction_change_time = random.uniform(3.0, 8.0)  # Time before changing direction
+        self.time_since_direction_change = 0.0
+        self.is_patrolling = True
         
         # Add some random rotation for variety
         self.set_rotation(np.array([
@@ -354,14 +364,50 @@ class Pirate(GameObject):
             random.uniform(0, np.pi*2),
             random.uniform(0, np.pi*2)
         ], dtype=np.float32))
+        
+        # Last known player forward vector
+        self.player_forward = None
     
-    def update(self, delta_time, player_position):
+    def generate_random_direction(self):
+        """Generate a random normalized direction vector."""
+        direction = np.array([
+            random.uniform(-1.0, 1.0),
+            random.uniform(-0.2, 0.2),  # Less vertical movement
+            random.uniform(-1.0, 1.0)
+        ], dtype=np.float32)
+        
+        # Normalize the direction
+        norm = np.linalg.norm(direction)
+        if norm > 0:
+            direction = direction / norm
+        else:
+            direction = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+            
+        return direction
+    
+    def update(self, delta_time, player_position, player_forward=None):
+        # Store player's forward vector if provided
+        if player_forward is not None:
+            self.player_forward = player_forward
+        
         # Calculate vector to player
         to_player = player_position - self.position
         distance_to_player = np.linalg.norm(to_player)
         
-        # Only chase if within chase distance
-        if distance_to_player < self.chase_distance:
+        # Check if player is looking at pirate
+        player_can_see_pirate = True
+        if self.player_forward is not None:
+            # Normalize direction to player
+            direction_to_pirate = to_player / distance_to_player if distance_to_player > 0 else np.zeros(3)
+            
+            # If dot product is negative, player is facing away from pirate
+            dot_product = np.dot(self.player_forward, direction_to_pirate)
+            player_can_see_pirate = dot_product > 0
+        
+        # Only chase if within chase distance AND player is looking at pirate
+        if distance_to_player < self.chase_distance and player_can_see_pirate:
+            self.is_patrolling = False
+            
             # Normalize the direction vector
             if distance_to_player > 0:
                 direction = to_player / distance_to_player
@@ -407,9 +453,52 @@ class Pirate(GameObject):
                     self.rotation[1] -= rotation_step
             else:
                 self.rotation[1] = target_rotation
+        else:
+            # Start or continue patrolling in random directions
+            self.is_patrolling = True
+            self.patrol(delta_time)
         
         # Call parent update to handle movement
         super().update(delta_time)
+    
+    def patrol(self, delta_time):
+        """Handle random patrol movement when not chasing player."""
+        # Update direction change timer
+        self.time_since_direction_change += delta_time
+        
+        # Change direction periodically or when hitting world boundaries
+        if self.time_since_direction_change >= self.direction_change_time:
+            self.patrol_direction = self.generate_random_direction()
+            self.time_since_direction_change = 0.0
+            self.direction_change_time = random.uniform(3.0, 8.0)  # Randomize next change time
+        
+        # Check if pirate is near world boundaries and change direction if needed
+        world_boundary = 4800  # Slightly inside the world bounds to avoid getting stuck
+        for i in range(3):
+            if abs(self.position[i]) > world_boundary:
+                # Change direction away from the boundary
+                self.patrol_direction[i] = -np.sign(self.position[i]) * abs(self.patrol_direction[i])
+                self.time_since_direction_change = 0.0
+        
+        # Set velocity for patrol movement
+        self.velocity = self.patrol_direction * self.patrol_speed
+        
+        # Gradually rotate to face the patrol direction
+        target_rotation = np.arctan2(self.patrol_direction[2], self.patrol_direction[0])
+        current_rotation = self.rotation[1]
+        
+        # Calculate shortest angle difference
+        angle_diff = (target_rotation - current_rotation + np.pi) % (2 * np.pi) - np.pi
+        
+        # Gradually rotate toward the target direction
+        rotation_step = (self.rotation_speed * 0.5) * delta_time  # Slower rotation when patrolling
+        if abs(angle_diff) > rotation_step:
+            if angle_diff > 0:
+                self.rotation[1] += rotation_step
+            else:
+                self.rotation[1] -= rotation_step
+        else:
+            self.rotation[1] = target_rotation
     
     def take_damage(self, amount):
         self.health -= amount
@@ -537,9 +626,9 @@ class Laser(GameObject):
         self.set_color(np.array([1, 0, 0.3, 1.0], dtype=np.float32))
         
         # Laser properties
-        self.lifetime = 10.0  # Seconds before disappearing
+        self.lifetime = 5.0  # Seconds before disappearing
         self.time_alive = 0.0
-        self.speed = 3000
+        self.speed =10000
 
         
     def update(self, delta_time):

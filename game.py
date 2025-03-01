@@ -228,7 +228,7 @@ class Game:
             self.gui.render(imgui.get_draw_data())
 
         elif self.screen == GameScreen.GAME_OVER:
-            window_w, window_h = 400, 200
+            window_w, window_h = 400, 250
             x_pos = (self.width - window_w) / 2
             y_pos = (self.height - window_h) / 2
             
@@ -237,18 +237,32 @@ class Game:
             imgui.set_next_window_size(window_w, window_h)
             imgui.begin("GAME OVER", False, imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_COLLAPSE | imgui.WINDOW_NO_RESIZE)
             
+            # Add detailed game over message
+            imgui.text_colored(1.0, 0.3, 0.3, 1.0, "Your ship was destroyed by a pirate vessel!")
+            imgui.spacing()
+            imgui.text("The cargo was lost in the deep space.")
+            imgui.text("Better luck on your next mission, captain.")
+            imgui.spacing()
+            imgui.separator()
+            imgui.spacing()
+            
             button_w, button_h = 150, 40
             imgui.set_cursor_pos_x((window_w - button_w) / 2)
-            if imgui.button("New Game", button_w, button_h):
+            if imgui.button("Try Again", button_w, button_h):
                 self.screen = GameScreen.GAME
                 self.InitScene()
                 
+            imgui.spacing()
+            imgui.set_cursor_pos_x((window_w - button_w) / 2)
+            if imgui.button("Main Menu", button_w, button_h):
+                self.screen = GameScreen.MAIN_MENU
+            
             imgui.end()
             imgui.render()
             self.gui.render(imgui.get_draw_data())
 
     def UpdateScene(self, inputs, time):
-        delta_time = time['deltaTime'];
+        delta_time = time['deltaTime']
         if self.screen == GameScreen.GAME:
             # Update camera to follow transporter's rotation as well
             transporter = self.gameState["transporter"]
@@ -272,11 +286,24 @@ class Game:
             
             # Update transporter
             self.gameState['transporter'].update(inputs, delta_time)
-
-            # update pirates
-            for pirate in self.gameState["pirates"]:
-                pirate.update(delta_time, transporter_pos)
             
+            # Get transporter position and forward vector for pirates
+            transporter = self.gameState["transporter"]
+            transporter_pos = transporter.position
+            player_forward = transporter.forward_direction
+
+            # Update pirates with player's forward vector
+            for pirate in self.gameState["pirates"]:
+                pirate.update(delta_time, transporter_pos, player_forward)
+                
+                # Check for collision with player
+                distance = np.linalg.norm(pirate.position - transporter_pos)
+                if distance < pirate.collision_radius:  # Use pirate's collision radius
+                    # Game over if pirate hits player
+                    print("Pirate collision detected!")
+                    self.screen = GameScreen.GAME_OVER
+                    return
+
             # Update only the minimap arrow
             if "minimap_arrow" in self.gameState and "transporter" in self.gameState:
                 transporter = self.gameState["transporter"]
@@ -327,9 +354,9 @@ class Game:
             for laser in self.gameState["lasers"]:
                 # Check for collision with pirates
                 for pirate in self.gameState["pirates"]:
-                    # check distance between laser and pirate
+                    # Check distance between laser and pirate using pirate's collision radius
                     distance = np.linalg.norm(laser.position - pirate.position)
-                    if distance < 20.0:  # Collision radius
+                    if distance < pirate.collision_radius:  # Use the pirate's collision radius
                         # Destroy pirate
                         self.gameState["pirates"].remove(pirate)
                         # Remove laser
@@ -362,7 +389,7 @@ class Game:
                     self.proximity_alert = True
                 
                 # Larger collision radius for easier docking
-                if distance < 30.0:  # Increased from 15.0 to make it easier
+                if distance < 50.0:  # Increased from 15.0 to make it easier
                     # Player won! Show victory screen
                     self.screen = GameScreen.WIN
             
