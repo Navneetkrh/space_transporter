@@ -205,13 +205,23 @@ class Game:
             imgui.new_frame()
             imgui.set_next_window_position(x_pos, y_pos)
             imgui.set_next_window_size(window_w, window_h)
-            imgui.begin("YOU WON", False, imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_COLLAPSE | imgui.WINDOW_NO_RESIZE)
+            imgui.begin("MISSION COMPLETE", False, imgui.WINDOW_NO_MOVE | imgui.WINDOW_NO_COLLAPSE | imgui.WINDOW_NO_RESIZE)
+            
+            # Add congratulatory message
+            imgui.text("You successfully reached the destination!")
+            imgui.text("Cargo delivered. Well done, captain!")
+            imgui.spacing()
             
             button_w, button_h = 150, 40
             imgui.set_cursor_pos_x((window_w - button_w) / 2)
-            if imgui.button("New Game", button_w, button_h):
+            if imgui.button("New Mission", button_w, button_h):
                 self.screen = GameScreen.GAME
                 self.InitScene()
+                
+            imgui.spacing()
+            imgui.set_cursor_pos_x((window_w - button_w) / 2)
+            if imgui.button("Main Menu", button_w, button_h):
+                self.screen = GameScreen.MAIN_MENU
                 
             imgui.end()
             imgui.render()
@@ -338,14 +348,22 @@ class Game:
             # This would be implemented here
             ############################################################################
 
+            # Check for win condition - arrival at destination
             if "transporter" in self.gameState and "destination_station" in self.gameState:
                 transporter_pos = self.gameState["transporter"].position
                 dest_station_pos = self.gameState["destination_station"].position
                 
-                # Simple distance-based collision detection
+                # Calculate distance to destination
                 distance = np.linalg.norm(transporter_pos - dest_station_pos)
-                if distance < 15.0:  # Collision radius
-                    # Player won!
+                
+                # Show proximity message when getting close
+                if distance < 100.0 and not hasattr(self, "proximity_alert"):
+                    print("Approaching destination! Slow down for docking.")
+                    self.proximity_alert = True
+                
+                # Larger collision radius for easier docking
+                if distance < 30.0:  # Increased from 15.0 to make it easier
+                    # Player won! Show victory screen
                     self.screen = GameScreen.WIN
             
     def DrawScene(self):

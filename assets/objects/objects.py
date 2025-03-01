@@ -174,7 +174,7 @@ class Transporter(GameObject):
         self.set_rotation(self.default_rotation)
         
         # Physics properties
-        self.max_speed = 50.0  # Maximum linear speed
+        self.max_speed = 200.0  # Maximum linear speed
         self.max_rotation_speed = 2.0  # Maximum rotation speed
         self.thrust_power = 10.0  # Acceleration power when using spacebar
         self.turn_power = 0.01  # Rotation power for flight controls
