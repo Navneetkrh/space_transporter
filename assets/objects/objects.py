@@ -2,8 +2,9 @@ import random
 import time
 import numpy as np
 import os
-from utils.graphics import Object, Shader
-from assets.shaders.shaders import standard_shader,laser_shader,minimap_shader,crosshair_shader
+from OpenGL.GL import *
+from utils.graphics import Object, Shader, VBO, IBO, VAO
+from assets.shaders.shaders import standard_shader, laser_shader, minimap_shader, crosshair_shader
 
 def load_obj_file(file_path):
     vertices = []
@@ -58,9 +59,11 @@ def load_and_process_obj(model_path, scale=1.0):
     }
     
     return properties
+import os
+import numpy as np
 
 class GameObject:
-    def __init__(self, model_path, scale=1.0,shader=standard_shader):
+    def __init__(self, model_path, scale=1.0, shader=standard_shader):
         # Use the existing load_and_process_obj function to get properties
         model_properties = load_and_process_obj(model_path, scale)
         
@@ -72,18 +75,15 @@ class GameObject:
         self.position = np.zeros(3, dtype=np.float32)
         self.rotation = np.zeros(3, dtype=np.float32)
         self.velocity = np.zeros(3, dtype=np.float32)
-        self.rotation_velocity = np.zeros(3, dtype=np.float32)
+        self.rotation_velocity = np.zeros(3, dtype=np.float32)  # Make sure this is defined
         self.acceleration = np.zeros(3, dtype=np.float32)
         self.drag_factor = 0.98  # Default drag factor
-
     
     def update(self, delta_time):
         # Base update method to be overridden by child classes
         self.update_position(delta_time)
         self.update_rotation(delta_time)
         self.apply_drag(self.drag_factor)
-    
-
     
     def update_position(self, delta_time):
         # Update position based on velocity
@@ -98,7 +98,7 @@ class GameObject:
     def apply_drag(self, drag_factor):
         # Apply drag to gradually slow down
         self.velocity *= drag_factor
-        self.rotation_velocity *= drag_factor
+        self.rotation_velocity *= drag_factor  # Apply drag to rotation too
     
     def Draw(self):
         self.graphics_obj.Draw()
@@ -137,9 +137,6 @@ class GameObject:
         self.graphics_obj.properties['colour'] = np.array(color, dtype=np.float32)
 
 
-import os
-import numpy as np
-
 class Transporter(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'transporter.obj')
@@ -156,12 +153,11 @@ class Transporter(GameObject):
         # Physics properties
         self.max_speed = 50.0  # Maximum linear speed
         self.max_rotation_speed = 2.0  # Maximum rotation speed
+        self.rotation_speed = 1.0  # Actual rotation speed (radians per second)
         self.thrust_power = 10.0  # Acceleration power when using spacebar
-        self.turn_power = 0.01  # Rotation power for flight controls
+        self.turn_power = 1.0  # Rotation power for flight controls
         self.drag_factor = 0.98  # Drag coefficient to slow down over time
-        
-        # Advanced flight properties
-        self.forward_speed = 0.0  # Current forward speed
+        self.rotation_velocity = np.zeros(3, dtype=np.float32)
         
         # Game state properties
         self.health = 100
@@ -176,49 +172,22 @@ class Transporter(GameObject):
 
         # Local (model-space) directions:
         self.local_forward = np.array([1, 0, 0], dtype=np.float32)
-        self.local_right   = np.array([0, -1, 0], dtype=np.float32)
-        self.local_up      = np.array([0, 0, -1], dtype=np.float32)
+        self.local_right = np.array([0, -1, 0], dtype=np.float32)
+        self.local_up = np.array([0, 0, -1], dtype=np.float32)
         
         # Initialize world-space direction vectors (they will be updated)
         self.forward_direction = self.local_forward.copy()
         self.right_direction = self.local_right.copy()
         self.up_direction = self.local_up.copy()
-    
-    def process_inputs(self, inputs, delta_time):
-        # Process rotation inputs (on it's own axis)
-        if inputs["W"] :  # Pitch down (rotate around Y axis)
-            self.add_torque([0, 1, 0], self.turn_power)
-        if inputs["S"] :  # Pitch up (rotate around Y axis)
-            self.add_torque([0, -1, 0], self.turn_power)
-        if inputs["A"] and self.local_up.dot(self.up_direction)>0:  # Yaw left (rotate around Z axis)
-            self.add_torque([0, 0, -1], self.turn_power)
-        elif inputs["A"] and self.local_up.dot(self.up_direction)<0:  # Yaw left (rotate around Z axis)
-            self.add_torque([0, 0, 1], self.turn_power)
-        if inputs["D"] and self.local_up.dot(self.up_direction)>0:  # Yaw right (rotate around Z axis)
-            self.add_torque([0, 0, 1], self.turn_power)
-        elif inputs["D"] and self.local_up.dot(self.up_direction)<0:  # Yaw right (rotate around Z axis)
-            self.add_torque([0, 0, -1], self.turn_power)
-        if inputs["Q"]:  # Roll left (rotate around X axis)
-            self.add_torque([1, 0, 0], self.turn_power)
-        if inputs["E"]:  # Roll right (rotate around X axis)
-            self.add_torque([-1, 0, 0], self.turn_power)
-            
-        # Process acceleration input (spacebar)
-        if inputs["SPACE"]:
-            # Apply thrust in the current forward direction (updated in update)
-            self.add_force(self.forward_direction, self.thrust_power)
         
+        # Update initial direction vectors
+        self.update_direction_vectors()
     
-
-    
-    def update(self, inputs, delta_time):
-        # Process inputs first
-        self.process_inputs(inputs, delta_time)
-        
-        # Update world-space direction vectors based on current rotation.
-        # Retrieve Euler angles (assumed order: [pitch, yaw, roll])
+    def update_direction_vectors(self):
+        """Update world-space direction vectors based on current rotation."""
+        # Retrieve Euler angles
         rx, ry, rz = self.rotation
-
+        
         # Create rotation matrices for each axis:
         Rx = np.array([
             [1, 0, 0],
@@ -238,36 +207,67 @@ class Transporter(GameObject):
             [0, 0, 1]
         ])
         
-        # Combine rotations.
-        # One common convention is R = Rz @ Ry @ Rx (roll, then yaw, then pitch).
+        # Combine rotations in the order Rz * Ry * Rx (roll, then yaw, then pitch)
+        # This is the order you had in your original code
         rot_matrix = Rz @ Ry @ Rx
         
-        # Update direction vectors by transforming local axes:
+        # Transform local axes to world space
         self.forward_direction = rot_matrix @ self.local_forward
-        self.right_direction   = rot_matrix @ self.local_right
-        self.up_direction      = rot_matrix @ self.local_up
+        self.right_direction = rot_matrix @ self.local_right
+        self.up_direction = rot_matrix @ self.local_up
         
-        # Normalize the direction vectors:
+        # Normalize the vectors
         self.forward_direction /= np.linalg.norm(self.forward_direction)
-        self.right_direction   /= np.linalg.norm(self.right_direction)
-        self.up_direction      /= np.linalg.norm(self.up_direction)
+        self.right_direction /= np.linalg.norm(self.right_direction)
+        self.up_direction /= np.linalg.norm(self.up_direction)
+    
+    def process_inputs(self, inputs, delta_time):
+        # Direct rotation adjustments based on inputs
+        # The amount to rotate in each direction per second
+        rotation_amount = self.rotation_speed * delta_time
+        
+        if inputs["W"]:  # Pitch down
+            self.rotation[0] += rotation_amount
+        if inputs["S"]:  # Pitch up
+            self.rotation[0] -= rotation_amount
+        if inputs["A"]:  # Yaw left
+            self.rotation[1] -= rotation_amount
+        if inputs["D"]:  # Yaw right
+            self.rotation[1] += rotation_amount
+        if inputs["Q"]:  # Roll left
+            self.rotation[2] -= rotation_amount
+        if inputs["E"]:  # Roll right
+            self.rotation[2] += rotation_amount
+        
+        # Process acceleration input (spacebar)
+        if inputs["SPACE"]:
+            # Apply thrust in the current forward direction
+            self.add_force(self.forward_direction, self.thrust_power)
+    
+    def update(self, inputs, delta_time):
+        # Process inputs first
+        self.process_inputs(inputs, delta_time)
+        
+        # Update position based on velocity
+        self.position += self.velocity * delta_time
+        self.graphics_obj.properties['position'] = self.position
+        
+        # Apply drag to velocity
+        self.velocity *= self.drag_factor
         
         # Clamp velocity to max speed
         speed = np.linalg.norm(self.velocity)
         if speed > self.max_speed:
             self.velocity = (self.velocity / speed) * self.max_speed
-            
-        # Clamp rotation velocity to max rotation speed
-        rot_speed = np.linalg.norm(self.rotation_velocity)
-        if rot_speed > self.max_rotation_speed:
-            self.rotation_velocity = (self.rotation_velocity / rot_speed) * self.max_rotation_speed
         
-        # Call the parent's update to handle position and rotation integration
-        super().update(delta_time)
+        # Update direction vectors after rotation has been updated
+        self.update_direction_vectors()
+        
+        # Update the graphics object rotation
+        self.graphics_obj.properties['rotation'] = self.rotation
     
     def can_shoot(self, current_time):
-        # return current_time - self.last_shot_time >= self.laser_cooldown
-        return True
+        return current_time - self.last_shot_time >= self.laser_cooldown
     
     def shoot(self, current_time):
         if self.can_shoot(current_time):
@@ -287,7 +287,7 @@ class Transporter(GameObject):
             laser.set_rotation(self.rotation.copy())
             
             # Give the laser velocity in the forward direction
-            laser_speed = 1000.0 +np.linalg.norm(self.velocity)# Adjust as needed
+            laser_speed = 1000.0 + np.linalg.norm(self.velocity)  # Adjust as needed
             laser.set_velocity(self.forward_direction * laser_speed)
             
             # Set a lifetime for the laser (in seconds)
@@ -317,7 +317,6 @@ class Pirate(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'pirate.obj')
         super().__init__(model_path, scale=5.0)
-        
         # Set red color for pirates
         self.set_color(np.array([1.0, 0.2, 0.2, 1.0], dtype=np.float32))
         
@@ -367,7 +366,7 @@ class Pirate(GameObject):
             
             # Rotate the direction vector by the interception angle
             approach_direction = rot_matrix @ direction
-                    
+            
             # Move toward player with adjusted direction
             self.velocity = approach_direction * self.speed
             
@@ -395,20 +394,17 @@ class Pirate(GameObject):
         self.health -= amount
         return self.health <= 0
 
-# Update Planet class
 class Planet(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'planet.obj')
         super().__init__(model_path, scale=100.0)
-        
         # Set a random rotation
         self.set_rotation(np.array([
             np.random.uniform(0, np.pi*2),
             np.random.uniform(0, np.pi*2),
             np.random.uniform(0, np.pi*2)
         ], dtype=np.float32))
-        
-        # Set a random color (default color will be adjusted in the Game class)
+        # Set initial color
         self.set_color(np.array([0.8, 0.8, 0.8, 1.0], dtype=np.float32))
 
 class SpaceStation(GameObject):
@@ -430,7 +426,6 @@ class SpaceStation(GameObject):
         if self.parent_planet is not None:
             # Update orbit angle
             self.orbit_angle += self.orbit_speed * delta_time
-            
             # Calculate new position based on orbit
             planet_pos = self.parent_planet.position
             self.position = planet_pos + np.array([
@@ -446,7 +441,6 @@ class SpaceStation(GameObject):
             self.rotation += np.array([0, 0.1 * delta_time, 0], dtype=np.float32)
             self.graphics_obj.properties['rotation'] = self.rotation
 
-            
 class MinimapArrow(GameObject):
     def __init__(self, target_object=None, color=None):
         model_path = os.path.join('assets', 'objects', 'models', 'arrow.obj')
@@ -523,7 +517,6 @@ class Laser(GameObject):
         self.lifetime = 10.0  # Seconds before disappearing
         self.time_alive = 0.0
         self.speed = 3000
-
         
     def update(self, delta_time):
         # Update position based on velocity
@@ -536,19 +529,10 @@ class Laser(GameObject):
         return self.time_alive >= self.lifetime
         
 ###############################################################
-
 # Write logic to load OBJ Files:
 
 # Will depend on type of object. For example if normals needed along with vertex positions
-
-# then will need to load slightly differently.
-
 # Can use the provided OBJ files from assignment_2_template/assets/objects/models/
-
 # Can also download other assets or model yourself in modelling softwares like blender
-
-###############################################################
-
 # Create Transporter, Pirates, Stars(optional), Minimap arrow, crosshair, planet, spacestation, laser
-
 ###############################################################
