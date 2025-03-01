@@ -199,9 +199,9 @@ class Transporter(GameObject):
         elif inputs["D"] and self.local_up.dot(self.up_direction)<0:  # Yaw right (rotate around Z axis)
             self.add_torque([0, 0, -1], self.turn_power)
         if inputs["Q"]:  # Roll left (rotate around Z axis)
-            self.add_torque([0, 0, 1], self.turn_power)
+            self.add_torque([1, 0, 0], self.turn_power)
         if inputs["E"]:  # Roll right (rotate around Z axis)
-            self.add_torque([0, 0, -1], self.turn_power)
+            self.add_torque([-1, 0, 0], self.turn_power)
             
         # Process acceleration input (spacebar)
         if inputs["SPACE"]:
@@ -448,9 +448,63 @@ class SpaceStation(GameObject):
 
             
 class MinimapArrow(GameObject):
-    def __init__(self):
+    def __init__(self, target_object=None, color=None):
         model_path = os.path.join('assets', 'objects', 'models', 'arrow.obj')
-        super().__init__(model_path, scale=0.5)
+        super().__init__(model_path, scale=10.0)
+        
+        # Store target object to point to
+        self.target_object = target_object
+        
+        # Set arrow color if provided (use different colors for different arrows)
+        if color is not None:
+            self.set_color(color)
+        else:
+            # Default color (green)
+            self.set_color(np.array([0.0, 1.0, 0.0, 1.0], dtype=np.float32))
+        
+        # Offset from player position (so arrows don't obstruct view)
+        self.offset = np.array([0.0, 30.0, 0.0], dtype=np.float32)
+        
+        # How far the arrow should be visible
+        self.max_distance = 3000.0  # Hide when target is very far
+        self.min_distance = 100.0   # Hide when target is very close
+        
+    def update(self, player_position, player_rotation, player_directions):
+        if self.target_object is None:
+            return
+        
+        # Calculate vector to target
+        to_target = self.target_object.position - player_position
+        distance = np.linalg.norm(to_target)
+        
+        # Only show if target is within range
+        if distance < self.min_distance or distance > self.max_distance:
+            # Hide arrow (can be done by moving it far away or making it transparent)
+            self.set_position(np.array([10000, 10000, 10000], dtype=np.float32))
+            return
+        
+        # Position the arrow near the player with offset
+        arrow_position = player_position + player_directions["up"] * self.offset[1]
+        self.set_position(arrow_position)
+        
+        # Make arrow point toward target
+        direction = to_target / distance if distance > 0 else np.array([1, 0, 0], dtype=np.float32)
+        
+        # Calculate rotation to face target
+        # Create a transformation that aligns arrow's forward direction with target direction
+        
+        # Calculate rotation around Y axis (yaw)
+        yaw = np.arctan2(direction[0], direction[2])
+        
+        # Calculate rotation around X axis (pitch)
+        pitch = np.arcsin(-direction[1])
+        
+        # Apply rotations
+        self.set_rotation(np.array([pitch, yaw, 0.0], dtype=np.float32))
+        
+        # Scale based on distance (optional - makes far arrows smaller)
+        scale_factor = min(1.0, 1000.0 / distance) * 10.0
+        self.graphics_obj.properties['scale'] = np.array([scale_factor, scale_factor, scale_factor], dtype=np.float32)
 
 class Crosshair(GameObject):
     def __init__(self):
