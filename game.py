@@ -4,7 +4,8 @@ from utils.graphics import Object, Camera, Shader
 import sys
 from enum import Enum, auto
 import random
-from assets.objects.objects import Pirate, Transporter,Planet,SpaceStation
+from assets.objects.objects import Pirate, Transporter,Planet,SpaceStation, MinimapArrow
+from assets.shaders.shaders import standard_shader, laser_shader, minimap_shader, crosshair_shader, destination_shader
 
 class GameScreen(Enum):
     MAIN_MENU = auto()
@@ -109,6 +110,20 @@ class Game:
                 self.gameState["transporter"].set_position(start_pos)
                 self.gameState["transporter"].start_planet = self.gameState["start_station"].parent_planet
                 self.gameState["transporter"].target_planet = self.gameState["destination_station"].parent_planet
+                
+                # Make the destination planet glow
+                dest_planet = self.gameState["destination_station"].parent_planet
+                
+                # Create new shader instance for the destination planet
+                dest_planet.shader = Shader(destination_shader["vertex_shader"], 
+                                         destination_shader["fragment_shader"])
+                dest_planet.graphics_obj.shader = dest_planet.shader
+                
+                # Update shader list
+                self.shaders.append(dest_planet.shader)
+                
+                # Set a distinct color for the destination planet
+                dest_planet.set_color(np.array([1.0, 0.9, 0.4, 1.0]))  # Golden color
                         
             ############################################################################
             # Initialize transporter (Randomly choose start and end planet, and initialize transporter at start planet)
@@ -139,8 +154,13 @@ class Game:
                 self.gameState["pirates"].append(pirate)
                 self.shaders.append(pirate.shader)
             ############################################################################
-            # Initialize minimap arrow (Need to write orthographic projection shader for it)
-            
+            # Initialize minimap arrow with bright neon green color
+            self.gameState["minimap_arrow"] = MinimapArrow(
+                target_object=self.gameState["destination_station"],
+                color=np.array([0.3, 2.0, 0.3, 1.0], dtype=np.float32)  # Very bright green
+            )
+            self.shaders.append(self.gameState["minimap_arrow"].shader)
+
             ############################################################################
 
     def ProcessFrame(self, inputs, time):
@@ -244,6 +264,18 @@ class Game:
             for pirate in self.gameState["pirates"]:
                 pirate.update(delta_time, transporter_pos)
             
+            # Update only the minimap arrow
+            if "minimap_arrow" in self.gameState and "transporter" in self.gameState:
+                transporter = self.gameState["transporter"]
+                self.gameState["minimap_arrow"].update(
+                    transporter.position,
+                    transporter.rotation,
+                    {
+                        "forward": transporter.forward_direction,
+                        "right": transporter.right_direction,
+                        "up": transporter.up_direction
+                    }
+                )
 
             
             ############################################################################
@@ -312,7 +344,7 @@ class Game:
                 if distance < 15.0:  # Collision radius
                     # Player won!
                     self.screen = GameScreen.WIN
-    
+            
     def DrawScene(self):
         if self.screen == GameScreen.GAME: 
             # Example draw statements
@@ -335,6 +367,9 @@ class Game:
                 spaceStation.Draw()
             for pirate in self.gameState["pirates"]:
                 pirate.Draw()
+            # Draw only the minimap arrow
+            if "minimap_arrow" in self.gameState:
+                self.gameState["minimap_arrow"].Draw()
             ######################################################
 
 

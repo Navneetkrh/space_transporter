@@ -301,3 +301,59 @@ laser_shader = {
         }
     '''
 }
+
+######################################################
+# Simpler glowing destination shader
+destination_shader = {
+    "vertex_shader": '''
+        #version 330 core
+        layout(location = 0) in vec3 vertexPosition;
+        layout(location = 1) in vec3 vertexNormal;
+
+        uniform mat4 modelMatrix;
+        uniform mat4 viewMatrix;
+        uniform mat4 projectionMatrix;
+        
+        out vec3 fragmentPosition;
+        out vec3 fragmentNormal;
+
+        void main() {
+            vec4 worldPos = modelMatrix * vec4(vertexPosition, 1.0);
+            fragmentPosition = worldPos.xyz;
+            fragmentNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+    ''',
+
+    "fragment_shader": '''
+        #version 330 core
+        in vec3 fragmentPosition;
+        in vec3 fragmentNormal;
+
+        out vec4 outputColour;
+
+        uniform vec4 objectColour;
+        uniform vec3 camPosition;
+        uniform vec3 lightPosition;
+
+        void main() {
+            vec3 normal = normalize(fragmentNormal);
+            vec3 viewDir = normalize(camPosition - fragmentPosition);
+            
+            // Add rim lighting (glow at edges)
+            float rim = 1.0 - max(dot(viewDir, normal), 0.0);
+            rim = smoothstep(0.5, 1.0, rim);
+            
+            // Glowing color (yellow/golden)
+            vec3 glowColor = vec3(1.0, 0.9, 0.5);  // Golden yellow
+            
+            // Base color with rim glow
+            vec3 finalColor = mix(objectColour.rgb, glowColor, rim * 0.6);
+            
+            // Make it brighter overall
+            finalColor *= 1.5;
+            
+            outputColour = vec4(finalColor, objectColour.a);
+        }
+    '''
+}

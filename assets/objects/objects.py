@@ -13,20 +13,40 @@ def load_obj_file(file_path):
     
     with open(file_path, 'r') as f:
         for line in f:
+            # Skip empty lines and comments
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+                
+            # Handle vertex data
             if line.startswith('v '):
-                vertices.append([float(x) for x in line[2:].split()])
+                # Split on whitespace and take only coordinates (ignore comments)
+                parts = line[2:].strip().split()
+                if len(parts) >= 3:  # Make sure we have at least x, y, z
+                    vertices.append([float(parts[0]), float(parts[1]), float(parts[2])])
+            
+            # Handle normal data
             elif line.startswith('vn '):
-                normals.append([float(x) for x in line[3:].split()])
+                parts = line[3:].strip().split()
+                if len(parts) >= 3:
+                    normals.append([float(parts[0]), float(parts[1]), float(parts[2])])
+            
+            # Handle texture coordinate data
             elif line.startswith('vt '):
-                texture_coords.append([float(x) for x in line[3:].split()])
+                parts = line[3:].strip().split()
+                if len(parts) >= 2:
+                    texture_coords.append([float(parts[0]), float(parts[1])])
+            
+            # Handle face data
             elif line.startswith('f '):
                 face = []
-                for vertex in line[2:].split():
-                    indices = vertex.split('/')
-                    # Convert to 0-based indexing
+                # Split by whitespace and process each vertex specification
+                for vertex_spec in line[2:].strip().split():
+                    # Handle different formats: v, v/vt, v//vn, v/vt/vn
+                    indices = vertex_spec.split('/')
                     v_idx = int(indices[0]) - 1
-                    t_idx = int(indices[1]) - 1 if indices[1] else -1
-                    n_idx = int(indices[2]) - 1 if len(indices) > 2 else -1
+                    t_idx = int(indices[1]) - 1 if len(indices) > 1 and indices[1] else -1
+                    n_idx = int(indices[2]) - 1 if len(indices) > 2 and indices[2] else -1
                     face.append((v_idx, t_idx, n_idx))
                 faces.append(face)
     
@@ -450,25 +470,29 @@ class SpaceStation(GameObject):
 class MinimapArrow(GameObject):
     def __init__(self, target_object=None, color=None):
         model_path = os.path.join('assets', 'objects', 'models', 'arrow.obj')
-        super().__init__(model_path, scale=10.0)
+        # Increase scale to make the arrow much larger
+        super().__init__(model_path, scale=30.0)
         
         # Store target object to point to
         self.target_object = target_object
         
-        # Set arrow color if provided (use different colors for different arrows)
+        # Make the arrow a very bright color for visibility
         if color is not None:
             self.set_color(color)
         else:
-            # Default color (green)
-            self.set_color(np.array([0.0, 1.0, 0.0, 1.0], dtype=np.float32))
+            # Very bright green
+            self.set_color(np.array([0.0, 2.0, 0.0, 1.0], dtype=np.float32))
         
-        # Offset from player position (so arrows don't obstruct view)
-        self.offset = np.array([0.0, 30.0, 0.0], dtype=np.float32)
+        # Position minimap arrow farther above player for better visibility
+        self.offset = np.array([0.0, 50.0, 0.0], dtype=np.float32)
+        # Increase max distance to always show the arrow
+        self.max_distance = 10000.0  # Much larger range
+        self.min_distance = 10.0     # Smaller min distance
         
-        # How far the arrow should be visible
-        self.max_distance = 3000.0  # Hide when target is very far
-        self.min_distance = 100.0   # Hide when target is very close
-        
+        # Add rotation to make arrow point downward initially
+        self.initial_rotation = np.array([np.pi/2, 0.0, 0.0], dtype=np.float32)
+        self.set_rotation(self.initial_rotation)
+
     def update(self, player_position, player_rotation, player_directions):
         if self.target_object is None:
             return
@@ -477,34 +501,27 @@ class MinimapArrow(GameObject):
         to_target = self.target_object.position - player_position
         distance = np.linalg.norm(to_target)
         
-        # Only show if target is within range
-        if distance < self.min_distance or distance > self.max_distance:
-            # Hide arrow (can be done by moving it far away or making it transparent)
+        # Only hide when extremely close
+        if distance < self.min_distance:
             self.set_position(np.array([10000, 10000, 10000], dtype=np.float32))
             return
-        
-        # Position the arrow near the player with offset
-        arrow_position = player_position + player_directions["up"] * self.offset[1]
+
+        # Always position arrow directly above player
+        arrow_position = player_position + np.array([0.0, self.offset[1], 0.0], dtype=np.float32)
         self.set_position(arrow_position)
         
         # Make arrow point toward target
         direction = to_target / distance if distance > 0 else np.array([1, 0, 0], dtype=np.float32)
         
-        # Calculate rotation to face target
-        # Create a transformation that aligns arrow's forward direction with target direction
-        
-        # Calculate rotation around Y axis (yaw)
+        # Calculate rotations - add a constant offset to pitch to make it point down more
         yaw = np.arctan2(direction[0], direction[2])
-        
-        # Calculate rotation around X axis (pitch)
-        pitch = np.arcsin(-direction[1])
+        pitch = np.arcsin(-direction[1]) + np.pi/4  # Point down more
         
         # Apply rotations
         self.set_rotation(np.array([pitch, yaw, 0.0], dtype=np.float32))
         
-        # Scale based on distance (optional - makes far arrows smaller)
-        scale_factor = min(1.0, 1000.0 / distance) * 10.0
-        self.graphics_obj.properties['scale'] = np.array([scale_factor, scale_factor, scale_factor], dtype=np.float32)
+        # Set a fixed large scale regardless of distance
+        self.graphics_obj.properties['scale'] = np.array([30.0, 30.0, 30.0], dtype=np.float32)
 
 class Crosshair(GameObject):
     def __init__(self):
