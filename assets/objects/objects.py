@@ -5,6 +5,8 @@ import os
 from utils.graphics import Object, Shader
 from utils.matrix_utils import rotation_matrix, euler_to_matrix, matrix_to_euler
 from assets.shaders.shaders import standard_shader,laser_shader,minimap_shader,crosshair_shader
+import os
+import numpy as np
 
 def load_obj_file(file_path):
     vertices = []
@@ -230,8 +232,7 @@ class GameObject:
         self.graphics_obj.properties['colour'] = np.array(color, dtype=np.float32)
 
 
-import os
-import numpy as np
+
 
 class Transporter(GameObject):
     def __init__(self):
@@ -402,169 +403,78 @@ class Transporter(GameObject):
 class Pirate(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'pirate.obj')
-        
         super().__init__(model_path, scale=20.0)  
         
-        
+        # Set colors and base properties
         self.set_color(np.array([0.2, 0.8, 0.7, 1.0], dtype=np.float32))
         
+        # Simplified speed properties - faster pursuit speed
+        self.chase_speed = random.uniform(120.0, 160.0)
+        self.patrol_speed = 40.0  # Fixed slower patrol speed
+        self.chase_distance = 10000.0  # Detection range
         
-        self.base_speed = 100.0  
-        self.speed = self.base_speed + random.uniform(-20.0, 80.0)  
-        self.patrol_speed = self.base_speed * 0.3  
-        self.chase_distance = 30000.0  
+        # Combat properties
         self.health = 3  
         self.damage = 100  
-        self.rotation_speed = 1.0 + random.uniform(-0.5, 0.5)  
         self.collision_radius = 80  
         
+        # Movement properties
+        self.direction_timer = 0.0
+        self.direction_change_interval = 5.0  # Fixed interval for patrols
+        self.rotation_speed = 2.0  # Faster rotation
         
-        self.patrol_direction = self.generate_random_direction()
-        self.direction_change_time = random.uniform(3.0, 8.0)  
-        self.time_since_direction_change = 0.0
-        self.is_patrolling = True
-        
-        
-        self.set_rotation(np.array([
-            random.uniform(0, np.pi*2),
-            random.uniform(0, np.pi*2),
-            random.uniform(0, np.pi*2)
-        ], dtype=np.float32))
-        
-        
-        self.player_forward = None
+        # Initialize with random direction and rotation
+        self.target_direction = self.generate_random_direction()
+        self.set_rotation(np.array([0, random.uniform(0, 2*np.pi), 0], dtype=np.float32))
     
     def generate_random_direction(self):
         """Generate a random normalized direction vector."""
         direction = np.array([
             random.uniform(-1.0, 1.0),
-            random.uniform(-0.2, 0.2),  
+            0.0,  # Keep movement in horizontal plane
             random.uniform(-1.0, 1.0)
         ], dtype=np.float32)
-        
-        
-        norm = np.linalg.norm(direction)
-        if norm > 0:
-            direction = direction / norm
-        else:
-            direction = np.array([1.0, 0.0, 0.0], dtype=np.float32)
-            
-        return direction
+        return direction / np.linalg.norm(direction)
     
     def update(self, delta_time, player_position, player_forward=None):
-        
-        if player_forward is not None:
-            self.player_forward = player_forward
-        
-        
+        # Calculate vector to player
         to_player = player_position - self.position
         distance_to_player = np.linalg.norm(to_player)
         
-        
-        player_can_see_pirate = True
-        if self.player_forward is not None:
-            
-            direction_to_pirate = to_player / distance_to_player if distance_to_player > 0 else np.zeros(3)
-            
-            
-            dot_product = np.dot(self.player_forward, direction_to_pirate)
-            player_can_see_pirate = dot_product > 0
-        
-        
-        if distance_to_player < self.chase_distance and player_can_see_pirate:
-            self.is_patrolling = False
-            
-            
-            if distance_to_player > 0:
-                direction = to_player / distance_to_player
-            else:
-                direction = np.array([1.0, 0.0, 0.0], dtype=np.float32)
-            
-            
-            
-            intercept_angle = np.random.uniform(np.pi/6, np.pi/3)  
-            
-            
-            if np.random.random() > 0.5:
-                intercept_angle = -intercept_angle
-                
-            
-            cos_angle = np.cos(intercept_angle)
-            sin_angle = np.sin(intercept_angle)
-            rot_matrix = np.array([
-                [cos_angle, 0, sin_angle],
-                [0, 1, 0],
-                [-sin_angle, 0, cos_angle]
-            ])
-            
-            
-            approach_direction = rot_matrix @ direction
-                    
-            
-            self.velocity = approach_direction * self.speed
-            
-            
-            target_rotation = np.arctan2(approach_direction[2], approach_direction[0])
-            current_rotation = self.rotation[1]
-            
-            
-            angle_diff = (target_rotation - current_rotation + np.pi) % (2 * np.pi) - np.pi
-            
-            
-            rotation_step = self.rotation_speed * delta_time
-            if abs(angle_diff) > rotation_step:
-                if angle_diff > 0:
-                    self.rotation[1] += rotation_step
-                else:
-                    self.rotation[1] -= rotation_step
-            else:
-                self.rotation[1] = target_rotation
+        if distance_to_player < self.chase_distance:
+            # CHASE MODE - Direct pursuit
+            self.target_direction = to_player / distance_to_player
+            self.velocity = self.target_direction * self.chase_speed
         else:
+            # PATROL MODE - Simple wandering
+            self.direction_timer += delta_time
+            if self.direction_timer >= self.direction_change_interval:
+                self.target_direction = self.generate_random_direction()
+                self.direction_timer = 0.0
             
-            self.is_patrolling = True
-            self.patrol(delta_time)
+            # World boundary check
+            world_boundary = 4800
+            for i in range(3):
+                if abs(self.position[i]) > world_boundary:
+                    self.target_direction[i] = -np.sign(self.position[i])
+            
+            self.velocity = self.target_direction * self.patrol_speed
         
+        # Rotate to face movement direction
+        if np.linalg.norm(self.velocity) > 0.1:
+            target_yaw = np.arctan2(self.velocity[2], self.velocity[0])
+            current_yaw = self.rotation[1]
+            angle_diff = (target_yaw - current_yaw + np.pi) % (2 * np.pi) - np.pi
+            
+            # Smooth rotation
+            rotation_amount = min(self.rotation_speed * delta_time, abs(angle_diff))
+            if abs(angle_diff) > 0.01:
+                if angle_diff > 0:
+                    self.rotation[1] += rotation_amount
+                else:
+                    self.rotation[1] -= rotation_amount
         
         super().update(delta_time)
-    
-    def patrol(self, delta_time):
-        """Handle random patrol movement when not chasing player."""
-        
-        self.time_since_direction_change += delta_time
-        
-        
-        if self.time_since_direction_change >= self.direction_change_time:
-            self.patrol_direction = self.generate_random_direction()
-            self.time_since_direction_change = 0.0
-            self.direction_change_time = random.uniform(3.0, 8.0)  
-        
-        
-        world_boundary = 4800  
-        for i in range(3):
-            if abs(self.position[i]) > world_boundary:
-                
-                self.patrol_direction[i] = -np.sign(self.position[i]) * abs(self.patrol_direction[i])
-                self.time_since_direction_change = 0.0
-        
-        
-        self.velocity = self.patrol_direction * self.patrol_speed
-        
-        
-        target_rotation = np.arctan2(self.patrol_direction[2], self.patrol_direction[0])
-        current_rotation = self.rotation[1]
-        
-        
-        angle_diff = (target_rotation - current_rotation + np.pi) % (2 * np.pi) - np.pi
-        
-        
-        rotation_step = (self.rotation_speed * 0.5) * delta_time  
-        if abs(angle_diff) > rotation_step:
-            if angle_diff > 0:
-                self.rotation[1] += rotation_step
-            else:
-                self.rotation[1] -= rotation_step
-        else:
-            self.rotation[1] = target_rotation
     
     def take_damage(self, amount):
         self.health -= amount
@@ -589,7 +499,7 @@ class Planet(GameObject):
 class SpaceStation(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'spacestation.obj')
-        super().__init__(model_path, scale=5.0)
+        super().__init__(model_path, scale=8.0)
         
         
         self.set_color(np.array([0.7, 0.7, 0.9, 1.0], dtype=np.float32))
@@ -597,7 +507,7 @@ class SpaceStation(GameObject):
         
         self.parent_planet = None
         self.orbit_angle = 0.0
-        self.orbit_radius = 150.0
+        self.orbit_radius = 250.0
         self.orbit_speed = 0.3  
     
     def update(self, delta_time):
@@ -657,7 +567,7 @@ class MinimapArrow(GameObject):
         distance = np.linalg.norm(to_target)
         
         
-        if distance < self.min_distance:
+        if (distance < self.min_distance):
             self.set_position(np.array([10000, 10000, 10000], dtype=np.float32))
             return
 
@@ -713,7 +623,7 @@ class Laser(GameObject):
         self.set_color(np.array([1, 0, 0.3, 1.0], dtype=np.float32))
         
         
-        self.lifetime = 5.0  
+        self.lifetime = 10.0  
         self.time_alive = 0.0
         self.speed =10000
 

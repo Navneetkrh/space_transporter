@@ -216,11 +216,11 @@ standard_shader = {
         uniform vec4 objectColour;
         uniform vec3 camPosition;
         uniform vec3 lightPosition;
-        uniform vec3 lightColor = vec3(1.0, 1.0, 1.0);
-        uniform float ambientStrength = 0.2;
+        uniform vec3 lightColor = vec3(1.0, 1.0, 0.9);
+        uniform float ambientStrength = 0.1;
         uniform float diffuseStrength = 0.8;
         uniform float specularStrength = 2.5;
-        uniform float shininess = 64.0;
+        uniform float shininess = 90.0;
         uniform bool useGeometryNormals = true;
 
         void main() {
