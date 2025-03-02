@@ -318,7 +318,7 @@ class Transporter(GameObject):
             self.acceleration_time = max(0.0, self.acceleration_time - delta_time * 2)
         
         # Apply thrust in the forward direction
-        if inputs["SPACE"]:
+        if inputs["SPACE"] or inputs['L_CLICK']:
             self.add_force(self.forward_direction, self.thrust_power)
     
     def update(self, inputs, delta_time):
