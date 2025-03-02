@@ -318,7 +318,7 @@ class Transporter(GameObject):
             self.acceleration_time = max(0.0, self.acceleration_time - delta_time * 2)
         
         # Apply thrust in the forward direction
-        if inputs["SPACE"] or inputs['L_CLICK']:
+        if inputs["SPACE"] and self.view==1:
             self.add_force(self.forward_direction, self.thrust_power)
     
     def update(self, inputs, delta_time):
@@ -353,6 +353,9 @@ class Transporter(GameObject):
         self.velocity *= self.drag_factor
     
     def can_shoot(self, current_time):
+        # if third person view, can not shoot
+        if self.view == 1:
+            return False
         
         return True
     

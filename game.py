@@ -131,7 +131,7 @@ class Game:
 
     def ProcessFrame(self, inputs, time):
         # Handle view toggle with '1' key
-        if inputs["1"] and not hasattr(self, "key_cooldown"):
+        if (inputs["1"] or inputs['R_CLICK']) and not hasattr(self, "key_cooldown"):
             if self.screen == GameScreen.GAME and "transporter" in self.gameState:
                 self.gameState["transporter"].toggle_view()
                 self.key_cooldown = 0.2  # Cooldown to prevent multiple toggles
@@ -276,7 +276,7 @@ class Game:
             
             # Handle laser firing
             current_time = time['currentTime']
-            if inputs["F"] and self.gameState['transporter'].can_shoot(current_time):
+            if (inputs["F"] or inputs["L_CLICK"]) and self.gameState['transporter'].can_shoot(current_time):
                 new_laser = self.gameState['transporter'].shoot(current_time)
                 if new_laser:
                     self.gameState['lasers'].append(new_laser)
