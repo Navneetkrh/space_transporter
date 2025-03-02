@@ -617,10 +617,10 @@ class Crosshair(GameObject):
 class Laser(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'laser.obj')
-        super().__init__(model_path, scale=5, shader=laser_shader)
+        super().__init__(model_path, scale=9, shader=laser_shader)
         
         
-        self.set_color(np.array([1, 0, 0.3, 1.0], dtype=np.float32))
+        self.set_color(np.array([0.5, 0, 1, 1.0], dtype=np.float32))
         
         
         self.lifetime = 10.0  
