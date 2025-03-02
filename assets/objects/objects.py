@@ -282,21 +282,21 @@ class Transporter(GameObject):
         dR = np.eye(3, dtype=np.float32)
         rotation_speed = self.turn_power * 50  # Adjust for reasonable rotation speed
         
-        if inputs["W"]:
-            dR = dR @ rotation_matrix(rotation_speed * delta_time, 0, 0)  # pitch down
-        if inputs["S"]:
-            dR = dR @ rotation_matrix(-rotation_speed * delta_time, 0, 0)  # pitch up
-        if inputs["A"] and self.local_up.dot(self.up_direction) > 0:
-            dR = dR @ rotation_matrix(0, 0, -rotation_speed * delta_time)  # roll left
-        elif inputs["A"] and self.local_up.dot(self.up_direction) < 0:
-            dR = dR @ rotation_matrix(0, 0, rotation_speed * delta_time)  # roll right
-        if inputs["D"] and self.local_up.dot(self.up_direction) > 0:
-            dR = dR @ rotation_matrix(0, 0, rotation_speed * delta_time)  # roll right
-        elif inputs["D"] and self.local_up.dot(self.up_direction) < 0:
-            dR = dR @ rotation_matrix(0, 0, -rotation_speed * delta_time)  # roll left
         if inputs["Q"]:
-            dR = dR @ rotation_matrix(0, rotation_speed * delta_time, 0)  # yaw left
+            dR = dR @ rotation_matrix(rotation_speed * delta_time, 0, 0)  # pitch down
         if inputs["E"]:
+            dR = dR @ rotation_matrix(-rotation_speed * delta_time, 0, 0)  # pitch up
+        if inputs["A"] :
+            dR = dR @ rotation_matrix(0, 0, -rotation_speed * delta_time)  # roll left
+        # elif inputs["A"] and self.local_up.dot(self.up_direction) < 0:
+        #     dR = dR @ rotation_matrix(0, 0, rotation_speed * delta_time)  # roll right
+        if inputs["D"] :
+            dR = dR @ rotation_matrix(0, 0, rotation_speed * delta_time)  # roll right
+        # elif inputs["D"] and self.local_up.dot(self.up_direction) < 0:
+        #     dR = dR @ rotation_matrix(0, 0, -rotation_speed * delta_time)  # roll left
+        if inputs["W"]:
+            dR = dR @ rotation_matrix(0, rotation_speed * delta_time, 0)  # yaw left
+        if inputs["S"]:
             dR = dR @ rotation_matrix(0, -rotation_speed * delta_time, 0)  # yaw right
 
         # Apply the incremental rotation to the current orientation
