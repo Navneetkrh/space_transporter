@@ -253,6 +253,9 @@ class Transporter(GameObject):
         self.turn_power = 0.01  
         self.drag_factor = 0.98  
         
+        # Add acceleration tracking
+        self.is_accelerating = False
+        self.acceleration_time = 0.0
         
         self.forward_speed = 0.0  
         
@@ -306,6 +309,13 @@ class Transporter(GameObject):
         u, _, vh = np.linalg.svd(self.orientation)
         self.orientation = u @ vh
         
+        # Track if accelerating
+        self.is_accelerating = inputs["SPACE"]
+        if self.is_accelerating:
+            self.acceleration_time += delta_time
+        else:
+            self.acceleration_time = max(0.0, self.acceleration_time - delta_time * 2)
+        
         # Apply thrust in the forward direction
         if inputs["SPACE"]:
             self.add_force(self.forward_direction, self.thrust_power)
@@ -347,7 +357,7 @@ class Transporter(GameObject):
     
     def shoot(self, current_time):
         if self.can_shoot(current_time):
-            print("Pew pew!")
+            # print("Pew pew!")
             self.last_shot_time = current_time
             
             
@@ -696,7 +706,7 @@ class Crosshair(GameObject):
 
 class Laser(GameObject):
     def __init__(self):
-        model_path = os.path.join('assets', 'objects', 'models', 'planet.obj')
+        model_path = os.path.join('assets', 'objects', 'models', 'laser.obj')
         super().__init__(model_path, scale=5, shader=laser_shader)
         
         
