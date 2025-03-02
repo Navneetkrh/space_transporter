@@ -248,10 +248,10 @@ class Transporter(GameObject):
         self.set_rotation(self.default_rotation)
         
         
-        self.max_speed = 200.0  
+        self.max_speed = 250.0  
         self.max_rotation_speed = 2.0  
-        self.thrust_power = 10.0  
-        self.turn_power = 0.01  
+        self.thrust_power = 5.0  
+        self.turn_power = 0.0165
         self.drag_factor = 0.98  
         
         # Add acceleration tracking
@@ -361,12 +361,11 @@ class Transporter(GameObject):
             # print("Pew pew!")
             self.last_shot_time = current_time
             
-            
-            from assets.objects.objects import Laser
+
             laser = Laser()
             
             
-            laser_offset = self.forward_direction * 10.0  
+            laser_offset = self.forward_direction * 5.0  
             laser_pos = self.position + laser_offset
             laser.set_position(laser_pos)
             
@@ -378,8 +377,8 @@ class Transporter(GameObject):
             laser.set_velocity(self.forward_direction * laser_speed)
             
             
-            laser.lifetime = 3.0
-            laser.time_alive = 0.0
+            # laser.lifetime = 3.0
+            # laser.time_alive = 0.0
             
             return laser
         
@@ -617,13 +616,13 @@ class Crosshair(GameObject):
 class Laser(GameObject):
     def __init__(self):
         model_path = os.path.join('assets', 'objects', 'models', 'laser.obj')
-        super().__init__(model_path, scale=9, shader=laser_shader)
+        super().__init__(model_path, scale=7, shader=laser_shader)
         
         
         self.set_color(np.array([0.5, 0, 1, 1.0], dtype=np.float32))
         
         
-        self.lifetime = 10.0  
+        self.lifetime = 3.0  
         self.time_alive = 0.0
         self.speed =10000
 
