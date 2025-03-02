@@ -18,8 +18,7 @@ def load_obj_file(file_path):
         for line in f:
             
             line = line.strip()
-            if not line or line.startswith('#'):  # Fixed: properly closed the string literal
-                continue
+            if not line or line.startswith('#'):  
                 
             
             if line.startswith('v '):
