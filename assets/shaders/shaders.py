@@ -218,9 +218,9 @@ standard_shader = {
         uniform vec3 lightPosition;
         uniform vec3 lightColor = vec3(1.0, 1.0, 1.0);
         uniform float ambientStrength = 0.2;
-        uniform float diffuseStrength = 1.0;
-        uniform float specularStrength = 0.5;
-        uniform float shininess = 32.0;
+        uniform float diffuseStrength = 0.3;
+        uniform float specularStrength = 1;
+        uniform float shininess = 64.0;
         uniform bool useGeometryNormals = true;
 
         void main() {
